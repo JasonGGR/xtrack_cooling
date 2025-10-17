@@ -2,20 +2,14 @@
 // This file is part of the Xtrack Package.  //
 // Copyright (c) CERN, 2024.                 //
 // ######################################### //
-
 #ifndef XTRACK_TRACK_MULT_FRINGE_H
 #define XTRACK_TRACK_MULT_FRINGE_H
 
-#ifndef POW2
-#define POW2(X) ((X)*(X))
-#endif
-#ifndef POW3
-#define POW3(X) ((X)*(X)*(X))
-#endif
+#include <headers/track.h>
 
 // This functionality is ported from MAD-NG
 
-/*gpufun*/
+GPUFUN
 void MultFringe_track_single_particle(
     LocalParticle* part,  // Particle to be tracked
     const double* kn,  // Normal components; array of length `order`
@@ -30,10 +24,10 @@ void MultFringe_track_single_particle(
 ) {
     if (k_order == -1 && kl_order == -1) return;
 
-    #ifdef XSUITE_BACKTRACK
+    if (LocalParticle_check_track_flag(part, XS_FLAG_BACKTRACK)) {
         LocalParticle_kill_particle(part, -32);
         return;
-    #endif
+    }
 
     const double beta0 = LocalParticle_get_beta0(part);
     const double q = LocalParticle_get_q0(part) * LocalParticle_get_charge_ratio(part);
@@ -47,8 +41,7 @@ void MultFringe_track_single_particle(
     const double t = LocalParticle_get_zeta(part) / beta0;
     const double pt = LocalParticle_get_ptau(part);
 
-    const double one_plus_delta = LocalParticle_get_delta(part) + 1.0;
-    const double pz = sqrt(POW2(one_plus_delta) - POW2(px) - POW2(py));
+    const double rpp = LocalParticle_get_rpp(part);
 
     double rx = 1;
     double ix = 0;
@@ -118,18 +111,18 @@ void MultFringe_track_single_particle(
 
     }
 
-    double a = 1 - fxx / pz;
-    double b = -fyx / pz;
-    double c = -fxy / pz;
-    double d = 1 - fyy / pz;
-    double det = 1 / (a * d - b * c);
+    double a = 1 - fxx * rpp;
+    double b = -fyx * rpp;
+    double c = -fxy * rpp;
+    double d = 1 - fyy * rpp;
+    double det = (a * d - b * c);
 
     double new_px = (d * px - b * py) / det;
     double new_py = (a * py - c * px) / det;
-    double delta_t = (1 / beta0 + pt) * (new_px * fx + new_py * fy) / POW3(pz);
+    double delta_t = (1 / beta0 + pt) * (new_px * fx + new_py * fy) * POW3(rpp);
 
-    LocalParticle_add_to_x(part, -fx / pz);
-    LocalParticle_add_to_y(part, -fy / pz);
+    LocalParticle_add_to_x(part, -fx * rpp);
+    LocalParticle_add_to_y(part, -fy * rpp);
     LocalParticle_set_px(part, new_px);
     LocalParticle_set_py(part, new_py);
     LocalParticle_set_zeta(part, (t + delta_t) * beta0);

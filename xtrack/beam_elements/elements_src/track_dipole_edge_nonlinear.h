@@ -1,7 +1,14 @@
+// copyright ############################### //
+// This file is part of the Xtrack Package.  //
+// Copyright (c) CERN, 2025.                 //
+// ######################################### //
 #ifndef XTRACK_TRACK_DIPOLEEDGE_NONLINEAR_H
 #define XTRACK_TRACK_DIPOLEEDGE_NONLINEAR_H
 
-/*gpufun*/
+#include <headers/track.h>
+
+
+GPUFUN
 void DipoleEdgeNonLinear_single_particle(LocalParticle* part,
             double const k, double const e1, double const fint, double const hgap,
             int64_t const side
@@ -17,7 +24,7 @@ void DipoleEdgeNonLinear_single_particle(LocalParticle* part,
 
     if (side == 0){ // entry
         if (sin_ > -99.){
-            YRotation_single_particle(part, sin_, cos_, tan_);
+            YRotation_single_particle(part, -sin_, cos_, -tan_);
         }
         DipoleFringe_single_particle(part, fint, hgap, k);
         if (sin_ > -99.){
@@ -30,7 +37,7 @@ void DipoleEdgeNonLinear_single_particle(LocalParticle* part,
         }
         DipoleFringe_single_particle(part, fint, hgap, -k);
         if (sin_ > -99.){
-            YRotation_single_particle(part, sin_, cos_, tan_);
+            YRotation_single_particle(part, -sin_, cos_, -tan_);
         }
 
     }

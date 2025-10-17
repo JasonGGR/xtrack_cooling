@@ -2,20 +2,14 @@
 // This file is part of the Xtrack Package.  //
 // Copyright (c) CERN, 2023.                 //
 // ######################################### //
-
 #ifndef XTRACK_TRACK_MAGNET_DRIFT_H
 #define XTRACK_TRACK_MAGNET_DRIFT_H
 
-#ifndef POW2
-#define POW2(X) ((X)*(X))
-#endif
+#include <headers/track.h>
 
-#ifndef NONZERO
-#define NONZERO(X) ((X) != 0.0)
-#endif
+#define IS_ZERO(X) (fabs(X) < 1e-9)
 
-
-/*gpufun*/
+GPUFUN
 void track_expanded_drift_single_particle(LocalParticle* part, double length){
     double const rpp    = LocalParticle_get_rpp(part);
     double const rv0v    = 1./LocalParticle_get_rvv(part);
@@ -30,7 +24,7 @@ void track_expanded_drift_single_particle(LocalParticle* part, double length){
 }
 
 
-/*gpufun*/
+GPUFUN
 void track_exact_drift_single_particle(LocalParticle* part, double length){
     double const px = LocalParticle_get_px(part);
     double const py = LocalParticle_get_py(part);
@@ -47,7 +41,7 @@ void track_exact_drift_single_particle(LocalParticle* part, double length){
     LocalParticle_add_to_s(part, length);
 }
 
-/*gpufun*/
+GPUFUN
 void track_polar_drift_single_particle(
     LocalParticle* part,  // LocalParticle to track
     const double length,  // length of the element
@@ -93,7 +87,7 @@ void track_polar_drift_single_particle(
 }
 
 
-/*gpufun*/
+GPUFUN
 void track_expanded_combined_dipole_quad_single_particle(
     LocalParticle* part,  // LocalParticle to track
     const double length,  // length of the element
@@ -218,7 +212,7 @@ void track_expanded_combined_dipole_quad_single_particle(
 
 }
 
-/*gpufun*/
+GPUFUN
 void track_curved_exact_bend_single_particle(
     LocalParticle* part,  // LocalParticle to track
     const double length,  // length of the element
@@ -273,7 +267,7 @@ void track_curved_exact_bend_single_particle(
     LocalParticle_add_to_s(part, s);
 }
 
-/*gpufun*/
+GPUFUN
 void track_straight_exact_bend_single_particle(
     LocalParticle* part,  // LocalParticle to track
     const double length,  // length of the element
@@ -321,14 +315,87 @@ void track_straight_exact_bend_single_particle(
     LocalParticle_add_to_s(part, s);
 }
 
+GPUFUN
+void track_solenoid_single_particle(
+    LocalParticle* part,
+    double length,
+    double ks,
+    double x0_solenoid,
+    double y0_solenoid
+) {
+    const double sk = ks / 2;
 
-/*gpufun*/
+    if (IS_ZERO(sk)) {
+        track_exact_drift_single_particle(part, length);
+        LocalParticle_set_ax(part, 0);
+        LocalParticle_set_ay(part, 0);
+        return;
+    }
+
+    if (IS_ZERO(length)){
+        return;
+    }
+
+    const double skl = sk * length;
+
+    // Particle coordinates
+    const double x = LocalParticle_get_x(part) - x0_solenoid;
+    const double px = LocalParticle_get_px(part);
+    const double y = LocalParticle_get_y(part) - y0_solenoid;
+    const double py = LocalParticle_get_py(part);
+    const double delta = LocalParticle_get_delta(part);
+    const double rvv = LocalParticle_get_rvv(part);
+
+    // set up constants
+    const double pk1 = px + sk * y;
+    const double pk2 = py - sk * x;
+    const double ptr2 = pk1 * pk1 + pk2 * pk2;
+    const double one_plus_delta = 1 + delta;
+    const double one_plus_delta_sq = one_plus_delta * one_plus_delta;
+    const double pz = sqrt(one_plus_delta_sq - ptr2);
+
+    // set up constants
+    const double cosTh = cos(skl / pz);
+    const double sinTh = sin(skl / pz);
+
+    const double si = sin(skl / pz) / sk;
+    const double rps[4] = {
+        cosTh * x + sinTh * y,
+        cosTh * px + sinTh * py,
+        cosTh * y - sinTh * x,
+        cosTh * py - sinTh * px
+    };
+    double const new_x = cosTh * rps[0] + si * rps[1];
+    double const new_px = cosTh * rps[1] - sk * sinTh * rps[0];
+    double const new_y = cosTh * rps[2] + si * rps[3];
+    double const new_py = cosTh * rps[3] - sk * sinTh * rps[2];
+    double const add_to_zeta = length * (1 - one_plus_delta / (pz * rvv));
+    double const new_ax = -0.5 * ks * new_y;
+    double const new_ay = 0.5 * ks * new_x;
+
+    LocalParticle_set_x(part, new_x + x0_solenoid);
+    LocalParticle_set_px(part, new_px);
+    LocalParticle_set_y(part, new_y + y0_solenoid);
+    LocalParticle_set_py(part, new_py);
+    LocalParticle_add_to_zeta(part, add_to_zeta);
+    LocalParticle_add_to_s(part, length);
+    LocalParticle_set_ax(part, new_ax);
+    LocalParticle_set_ay(part, new_ay);
+
+}
+
+
+
+GPUFUN
 void track_magnet_drift_single_particle(
     LocalParticle* part,  // LocalParticle to track
     const double length,  // length of the element
     const double k0,      // normal dipole strength
     const double k1,      // normal quadrupole strength
+    const double ks,      // solenoid strength
     const double h,       // curvature
+    const double x0_solenoid,
+    const double y0_solenoid,
     const int64_t drift_model      // drift model
 ) {
 
@@ -366,10 +433,15 @@ void track_magnet_drift_single_particle(
         case 5:
             track_straight_exact_bend_single_particle(part, length, k0);
             break;
+        case 6:
+            track_solenoid_single_particle(part, length, ks, x0_solenoid, y0_solenoid);
+            break;
         default:
             break;
     }
 
 }
+
+#undef IS_ZERO
 
 #endif

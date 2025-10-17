@@ -21,19 +21,21 @@ def test_non_zero_index():
     assert xtrack.mad_loader.non_zero_len(lst) == 3
 
 
-def test_add_lists():
+def test_add_lists_same_lengths():
     a = [1, 2, 3, 1, 1, 1]
     b = [1, 1, 1, 4, 5, 6]
     c = xtrack.mad_loader.add_lists(a, b, 8)
     assert c == [2, 3, 4, 5, 6, 7, 0, 0]
 
 
-def test_add_lists():
+def test_add_lists_different_lengths_pick_longer():
     a = [1, 2, 3, 1, 1, 1]
     b = [1, 1, 1, 4, 5, 6, 7, 8]
     c = xtrack.mad_loader.add_lists(a, b, 8)
     assert c == [2, 3, 4, 5, 6, 7, 7, 8]
 
+
+def test_add_lists_manually_extend():
     a = [1, 2, 3, 1, 1, 1]
     b = [1, 1, 1, 4, 5, 6, 7, 8]
     c = xtrack.mad_loader.add_lists(a, b, 10)
@@ -302,11 +304,11 @@ def test_matrix():
 
     mad.input("""
     a11=1;
-    m1: matrix,
+    mat: matrix,l=0.4,
           rm11:=a11,rm12=2,rm21=3,rm22=4,
           kick1=0.1,kick2=0.2,kick3=0.3;
 
-    ss: sequence, l=1; m1: m1, at=0; endsequence;
+    ss: sequence, l=1; mm: mat, at=0.3; endsequence;
 
     beam; use, sequence=ss;
     """)
@@ -314,7 +316,13 @@ def test_matrix():
     line = MadLoader(mad.sequence.ss).make_line()
     line = MadLoader(mad.sequence.ss, enable_expressions=True).make_line()
     line.vars['a11'] = 2.0
-    assert line[1].m1[0, 0] == line.vars['a11']._value
+    assert line['mm'].m1[0, 0] == line.vars['a11']._value
+
+    line.reset_s_at_end_turn
+
+    part = xt.Particles()
+    line['mm'].track(part)
+    xo.assert_allclose(part.s, 0.4, atol=1e-12, rtol=0)
 
 
 def test_srotation():
@@ -334,6 +342,76 @@ def test_srotation():
     assert isinstance(line[1], xt.SRotation)
     line.vars['angle'] = 2.0
     assert line[1].angle == line.vars['angle']._value * 180 / np.pi
+
+
+def test_thick_kicker_option():
+    mad = Madx(stdout=False)
+
+    mad.input("""
+    vk: vkicker, l=2, kick=2;
+    hk: hkicker, l=2, kick=3;
+    ki: kicker, l=2, vkick=4, hkick=5;
+    vk_thin: vkicker, lrad=2, kick=6;
+    hk_thin: hkicker, lrad=2, kick=7;
+    ki_thin: kicker, lrad=2, vkick=8, hkick=9;
+
+    ss: sequence, l = 6;
+        vk: vk, at = 1;
+        hk: hk, at = 3;
+        ki: ki, at = 5;
+        vk_thin: vk_thin, at = 6;
+        hk_thin: hk_thin, at = 6;
+        ki_thin: ki_thin, at = 6;
+    endsequence;
+
+    beam; use, sequence=ss;
+    """)
+    line = xt.Line.from_madx_sequence(mad.sequence.ss, deferred_expressions=True)
+
+    _, vk, hk, ki, vk_thin, hk_thin, ki_thin, _ = line.elements
+
+    assert isinstance(vk, xt.Multipole)
+    assert isinstance(hk, xt.Multipole)
+    assert isinstance(ki, xt.Multipole)
+    assert isinstance(vk_thin, xt.Multipole)
+    assert isinstance(hk_thin, xt.Multipole)
+    assert isinstance(ki_thin, xt.Multipole)
+
+    assert vk.isthick
+    assert hk.isthick
+    assert ki.isthick
+    assert not vk_thin.isthick
+    assert not hk_thin.isthick
+    assert not ki_thin.isthick
+
+    def assert_integrated_strength_eq(value, expected):
+        padded_expected = np.zeros_like(value)
+        padded_expected[:len(expected)] = expected
+        assert np.all(value == padded_expected)
+
+    assert_integrated_strength_eq(vk.knl, [0])
+    assert_integrated_strength_eq(vk.ksl, [2])
+    assert vk.length == 2
+
+    assert_integrated_strength_eq(hk.knl, [-3])
+    assert_integrated_strength_eq(hk.ksl, [0])
+    assert hk.length == 2
+
+    assert_integrated_strength_eq(ki.knl, [-5])
+    assert_integrated_strength_eq(ki.ksl, [4])
+    assert ki.length == 2
+
+    assert_integrated_strength_eq(vk_thin.knl, [0])
+    assert_integrated_strength_eq(vk_thin.ksl, [6])
+    assert vk_thin.length == 2
+
+    assert_integrated_strength_eq(hk_thin.knl, [-7])
+    assert_integrated_strength_eq(hk_thin.ksl, [0])
+    assert hk_thin.length == 2
+
+    assert_integrated_strength_eq(ki_thin.knl, [-9])
+    assert_integrated_strength_eq(ki_thin.ksl, [8])
+    assert ki_thin.length == 2
 
 
 def test_xrotation():
@@ -441,7 +519,7 @@ def test_mad_elements_import():
     k2: kick2, at=0.34;
     k3: kick3, at=0.35;
     de0: dipedge0, at=0.38;
-    r0: rfm0, at=0.4;
+    !r0: rfm0, at=0.4; # Loading of RFMultipole not supported anymore
     cb0: crab0, at=0.41;
     cb1: crab1, at=0.42;
     w: wire1, at=1;
@@ -537,44 +615,32 @@ def test_mad_elements_import():
         assert line['de0'].fint == 4
         assert line['de0'].hgap == 0.02
 
-        assert isinstance(line['r0'], xt.RFMultipole)
-        assert line.get_s_position('r0') == 0.4
-        assert np.all(line['r0'].knl == np.array([2, 3]))
-        assert np.all(line['r0'].ksl == np.array([0, 5]))
-        assert np.all(line['r0'].pn == np.array([0.3 * 360, 0.4 * 360]))
-        assert np.all(line['r0'].ps == np.array([0.5 * 360, 0.6 * 360]))
-        assert line['r0'].voltage == 2e6
-        assert line['r0'].order == 1
-        assert line['r0'].frequency == 100e6
-        assert line['r0'].lag == 180
+        # Loading of RFMultipole not supported anymore:
+        #
+        # assert isinstance(line['r0'], xt.RFMultipole)
+        # assert line.get_s_position('r0') == 0.4
+        # assert np.all(line['r0'].knl == np.array([2, 3, 0, 0, 0, 0]))
+        # assert np.all(line['r0'].ksl == np.array([0, 5, 0, 0, 0, 0]))
+        # assert np.all(line['r0'].pn == np.array([0.3 * 360, 0.4 * 360, 0, 0, 0, 0]))
+        # assert np.all(line['r0'].ps == np.array([0.5 * 360, 0.6 * 360, 0, 0, 0, 0]))
+        # assert line['r0'].voltage == 2e6
+        # assert line['r0'].order == 5
+        # assert line['r0'].frequency == 100e6
+        # assert line['r0'].lag == 180
 
-        assert isinstance(line['cb0'], xt.RFMultipole)
+        assert isinstance(line['cb0'], xt.CrabCavity)
         assert line.get_s_position('cb0') == 0.41
-        assert len(line['cb0'].knl) == 1
-        assert len(line['cb0'].ksl) == 1
-        xo.assert_allclose(line['cb0'].knl[0], 2 * 1e6 / line.particle_ref.p0c[0],
+        xo.assert_allclose(line['cb0'].crab_voltage, 2 * 1e6,
                            rtol=0, atol=1e-12)
-        assert np.all(line['cb0'].ksl == 0)
-        assert np.all(line['cb0'].pn == np.array([270]))
-        assert np.all(line['cb0'].ps == 0.)
-        assert line['cb0'].voltage == 0
-        assert line['cb0'].order == 0
+        assert np.all(line['cb0'].lag == 180)
         assert line['cb0'].frequency == 100e6
-        assert line['cb0'].lag == 0
 
-        assert isinstance(line['cb1'], xt.RFMultipole)
+        assert isinstance(line['cb1'], xt.CrabCavity)
         assert line.get_s_position('cb1') == 0.42
-        assert len(line['cb1'].knl) == 1
-        assert len(line['cb1'].ksl) == 1
-        xo.assert_allclose(line['cb1'].ksl[0], -2 * 1e6 / line.particle_ref.p0c[0],
-                           rtol=0, atol=1e-12)
-        assert np.all(line['cb1'].knl == 0)
-        assert np.all(line['cb1'].ps == np.array([270]))
-        assert np.all(line['cb1'].pn == 0.)
-        assert line['cb1'].voltage == 0
-        assert line['cb1'].order == 0
+        assert line['cb1'].crab_voltage == 2 * 1e6
+        assert np.all(line['cb1'].lag == 180)
+        xo.assert_allclose(line['cb1'].rot_s_rad, np.pi / 2, rtol=0, atol=1e-12)
         assert line['cb1'].frequency == 100e6
-        assert line['cb1'].lag == 0
 
         assert isinstance(line['w'], xt.Wire)
         assert line.get_s_position('w') == 1
@@ -593,8 +659,8 @@ def test_mad_elements_import():
         x_1, x_2, y_1, y_2 = 3, 2 * np.sqrt(3), np.sqrt(3), 6
         expected_x_vertices = [x_1, x_2, -x_2, -x_1, -x_1, -x_2, x_2, x_1]
         expected_y_vertices = [y_1, y_2, y_2, y_1, -y_1, -y_2, -y_2, -y_1]
-        xo.assert_allclose(line['oct_aper'].x_vertices, expected_x_vertices)
-        xo.assert_allclose(line['oct_aper'].y_vertices, expected_y_vertices)
+        xo.assert_allclose(line['oct_aper'].x_vertices, expected_x_vertices, atol=1e-14)
+        xo.assert_allclose(line['oct_aper'].y_vertices, expected_y_vertices, atol=1e-14)
 
 
 def test_selective_expr_import_and_replace_in_expr():
@@ -617,7 +683,7 @@ def test_selective_expr_import_and_replace_in_expr():
 
 
 def test_load_madx_optics_file():
-    collider = xt.Environment.from_json(
+    collider = xt.load(
         test_data_folder / 'hllhc15_thick/hllhc15_collider_thick.json')
     collider.build_trackers()
 

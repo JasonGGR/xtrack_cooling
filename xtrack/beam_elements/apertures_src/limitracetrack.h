@@ -6,9 +6,15 @@
 #ifndef XTRACK_LIMITRACETRACK_H
 #define XTRACK_LIMITRACETRACK_H
 
+#include <headers/track.h>
 
-/*gpufun*/
+
+GPUFUN
 void LimitRacetrack_track_local_particle(LimitRacetrackData el, LocalParticle* part0){
+
+    if(LocalParticle_check_track_flag(part0, XS_FLAG_IGNORE_LOCAL_APERTURE)){
+        return;
+    }
 
     double const min_x = LimitRacetrackData_get_min_x(el);
     double const max_x = LimitRacetrackData_get_max_x(el);
@@ -17,11 +23,12 @@ void LimitRacetrack_track_local_particle(LimitRacetrackData el, LocalParticle* p
     double const a = LimitRacetrackData_get_a(el);
     double const b = LimitRacetrackData_get_b(el);
 
-    //start_per_particle_block (part0->part)
+    START_PER_PARTICLE_BLOCK(part0, part);
 
         double const x = LocalParticle_get_x(part);
         double const y = LocalParticle_get_y(part);
-        double dx, dy;
+        double dx;
+        double dy;
         int refine;
 
         int64_t is_alive = (int64_t)(
@@ -76,7 +83,7 @@ void LimitRacetrack_track_local_particle(LimitRacetrackData el, LocalParticle* p
            LocalParticle_set_state(part, XT_LOST_ON_APERTURE);
         }
 
-    //end_per_particle_block
+    END_PER_PARTICLE_BLOCK;
 }
 
 #endif

@@ -2,13 +2,15 @@
 // This file is part of the Xtrack Package.  //
 // Copyright (c) CERN, 2021.                 //
 // ######################################### //
-
 #ifndef XTRACK_TRACK_XROTATION_H
 #define XTRACK_TRACK_XROTATION_H
 
-/*gpufun*/
-void XRotation_single_particle(LocalParticle* part, double sin_angle, double cos_angle, double tan_angle){
+#include <headers/track.h>
 
+
+GPUFUN
+void XRotation_single_particle(LocalParticle* part, double sin_angle, double cos_angle, double tan_angle)
+{
     double const beta0 = LocalParticle_get_beta0(part);
     double const x  = LocalParticle_get_x(part);
     double const y  = LocalParticle_get_y(part);
@@ -27,8 +29,7 @@ void XRotation_single_particle(LocalParticle* part, double sin_angle, double cos
     LocalParticle_set_x(part, x_hat);
     LocalParticle_set_py(part, py_hat);
     LocalParticle_set_y(part, y_hat);
-    LocalParticle_set_zeta(part,t_hat*beta0);
-
+    LocalParticle_set_zeta(part, t_hat*beta0);
 }
 
 #endif /* XTRACK_TRACK_XROTATION_H */

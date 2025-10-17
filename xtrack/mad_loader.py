@@ -420,29 +420,23 @@ class Alignment:
 class Dummy:
     type = "None"
 
-def _default_factory():
-    return 0.
 
 class MadLoader:
     @staticmethod
     def init_line_expressions(line, mad, replace_in_expr):  # to be added to Line....
         """Enable expressions"""
-        if line._var_management is None:
-            line._init_var_management()
+        line.vars.default_to_zero = True
 
         from xdeps.madxutils import MadxEval
 
-        _var_values = line._var_management["data"]["var_values"]
-        _var_values.default_factory = _default_factory
+        _var_values = line.env._var_management["data"]["var_values"]
         for name, par in mad.globals.cmdpar.items():
             if replace_in_expr is not None:
                 for k, v in replace_in_expr.items():
                     name = name.replace(k, v)
             _var_values[name] = par.value
-        _ref_manager = line._var_management["manager"]
-        _vref = line._var_management["vref"]
-        _fref = line._var_management["fref"]
-        _lref = line._var_management["lref"]
+        _vref = line._xdeps_vref
+        _fref = line._xdeps_fref
 
         madeval_no_repl = MadxEval(_vref, _fref, mad.elements).eval
 
@@ -653,7 +647,7 @@ class MadLoader:
     @property
     def math(self):
         if issubclass(self.Builder, ElementBuilderWithExpr):
-            return self.line._var_management['fref']
+            return self.line._xdeps_fref
 
         return np
 
@@ -1010,10 +1004,9 @@ class MadLoader:
 
         el = self.Builder(
             mad_elem.name,
-            self.classes.Solenoid,
+            self.classes.UniformSolenoid,
             length=mad_elem.l,
             ks=self.bv * mad_elem.ks,
-            ksi=self.bv * mad_elem.ksi,
             **kwargs,
         )
         return self.make_composite_element([el], mad_elem)
@@ -1034,50 +1027,56 @@ class MadLoader:
             lmax = max(lmax, non_zero_len(dkn), non_zero_len(dks))
             knl = add_lists(knl, dkn, lmax)
             ksl = add_lists(ksl, dks, lmax)
-        el = self.Builder(mad_elem.name, self.classes.Multipole, order=lmax - 1)
-        el.knl = knl[:lmax]
-        el.ksl = ksl[:lmax]
 
         if hasattr(mad_elem, 'ksl') and mad_elem.ksl[0]:
             raise NotImplementedError("Multipole with ksl[0] is not supported.")
 
-        if hasattr(el, 'hyl') and el.hyl:
+        if hasattr(mad_elem, 'hyl') and mad_elem.hyl:
             raise NotImplementedError("Multipole with hyl is not supported.")
 
-        if (
-            mad_elem.angle
-        ):  # testing for non-zero (cannot use !=0 as it creates an expression)
+        el = self.Builder(mad_elem.name, self.classes.Multipole, order=lmax - 1)
+        el.knl = knl[:lmax]
+        el.ksl = ksl[:lmax]
+
+        if mad_elem.angle:  # testing for non-zero (!=0 would create an expression)
             el.hxl = mad_elem.angle
         else:
             el.hxl = mad_elem.knl[0]  # in madx angle=0 -> dipole
         el.length = mad_elem.lrad
         return self.make_composite_element([el], mad_elem)
 
-    def convert_kicker(self, mad_el): # bv done
-        hkick = [-mad_el.hkick] if mad_el.hkick else []
-        vkick = [self.bv * mad_el.vkick] if mad_el.vkick else []
-        thin_kicker = self.Builder(
+    def _make_kicker_multipole(self, mad_el, hkick, vkick):
+
+        if mad_el.l:
+            isthick = True
+            length = mad_el.l
+        else:
+            isthick = False
+            length = mad_el.lrad
+
+
+        kicker = self.Builder(
             mad_el.name,
             self.classes.Multipole,
             knl=hkick,
             ksl=vkick,
-            length=(mad_el.l or mad_el.lrad),
-            hxl=0,
+            length=length,
+            isthick=isthick,
         )
 
-        if value_if_expr(mad_el.l) != 0:
-            if not self.allow_thick:
-                self._assert_element_is_thin(mad_el)
+        if isthick and not self.allow_thick:
+            self._assert_element_is_thin(mad_el)
 
-            sequence = [
-                self._make_drift_slice(mad_el, 0.5, "drift_{}..1"),
-                thin_kicker,
-                self._make_drift_slice(mad_el, 0.5, "drift_{}..2"),
-            ]
-        else:
-            sequence = [thin_kicker]
+        sequence = [kicker]
 
         return self.make_composite_element(sequence, mad_el)
+
+
+    def convert_kicker(self, mad_el): # bv done
+        hkick = [-mad_el.hkick] if mad_el.hkick else []
+        vkick = [self.bv * mad_el.vkick] if mad_el.vkick else []
+
+        return self._make_kicker_multipole(mad_el, hkick, vkick)
 
     convert_tkicker = convert_kicker
 
@@ -1088,28 +1087,8 @@ class MadLoader:
 
         hkick = [-mad_el.kick] if mad_el.kick else []
         vkick = []
-        thin_hkicker = self.Builder(
-            mad_el.name,
-            self.classes.Multipole,
-            knl=hkick,
-            ksl=vkick,
-            length=(mad_el.l or mad_el.lrad),
-            hxl=0,
-        )
 
-        if value_if_expr(mad_el.l) != 0:
-            if not self.allow_thick:
-                self._assert_element_is_thin(mad_el)
-
-            sequence = [
-                self._make_drift_slice(mad_el, 0.5, "drift_{}..1"),
-                thin_hkicker,
-                self._make_drift_slice(mad_el, 0.5, "drift_{}..2"),
-            ]
-        else:
-            sequence = [thin_hkicker]
-
-        return self.make_composite_element(sequence, mad_el)
+        return self._make_kicker_multipole(mad_el, hkick, vkick)
 
     def convert_vkicker(self, mad_el): # bv done
         if mad_el.vkick:
@@ -1118,28 +1097,8 @@ class MadLoader:
 
         hkick = []
         vkick = [self.bv * mad_el.kick] if mad_el.kick else []
-        thin_vkicker = self.Builder(
-            mad_el.name,
-            self.classes.Multipole,
-            knl=hkick,
-            ksl=vkick,
-            length=(mad_el.l or mad_el.lrad),
-            hxl=0,
-        )
 
-        if value_if_expr(mad_el.l) != 0:
-            if not self.allow_thick:
-                self._assert_element_is_thin(mad_el)
-
-            sequence = [
-                self._make_drift_slice(mad_el, 0.5, "drift_{}..1"),
-                thin_vkicker,
-                self._make_drift_slice(mad_el, 0.5, "drift_{}..2"),
-            ]
-        else:
-            sequence = [thin_vkicker]
-
-        return self.make_composite_element(sequence, mad_el)
+        return self._make_kicker_multipole(mad_el, hkick, vkick)
 
     def convert_dipedge(self, mad_elem):
         if self.bv == -1:
@@ -1180,40 +1139,38 @@ class MadLoader:
             voltage=scale_voltage * ee.volt * 1e6,
             frequency=frequency,
             lag=lag_deg,
+            length=ee.l
         )
 
-        if value_if_expr(ee.l) != 0:
-            sequence = [
-                self._make_drift_slice(ee, 0.5, f"drift_{{}}..1"),
-                el,
-                self._make_drift_slice(ee, 0.5, f"drift_{{}}..2"),
-            ]
-        else:
-            sequence = [el]
+        sequence = [el]
 
         return self.make_composite_element(sequence, ee)
 
     def convert_rfmultipole(self, ee):
-        if self.bv == -1:
-            raise NotImplementedError("RF multipole for bv=-1 are not yet supported.")
-        self._assert_element_is_thin(ee)
-        # TODO LRAD
-        if ee.harmon:
-            raise NotImplementedError
-        if ee.l:
-            raise NotImplementedError
-        el = self.Builder(
-            ee.name,
-            self.classes.RFMultipole,
-            voltage=ee.volt * 1e6,
-            frequency=ee.freq * 1e6,
-            lag=ee.lag * 360,
-            knl=ee.knl,
-            ksl=ee.ksl,
-            pn=[v * 360 for v in ee.pnl],
-            ps=[v * 360 for v in ee.psl],
-        )
-        return self.make_composite_element([el], ee)
+        raise NotImplementedError('Conversion of mad-x rfmultipole not supported')
+
+        # The following is untested, espeically for bv=-1
+
+        # if self.bv == -1:
+        #     raise NotImplementedError("RF multipole for bv=-1 are not yet supported.")
+        # self._assert_element_is_thin(ee)
+        # # TODO LRAD
+        # if ee.harmon:
+        #     raise NotImplementedError
+        # if ee.l:
+        #     raise NotImplementedError
+        # el = self.Builder(
+        #     ee.name,
+        #     self.classes.RFMultipole,
+        #     voltage=ee.volt * 1e6,
+        #     frequency=ee.freq * 1e6,
+        #     lag=ee.lag * 360,
+        #     knl=ee.knl,
+        #     ksl=ee.ksl,
+        #     pn=[v * 360 for v in ee.pnl],
+        #     ps=[v * 360 for v in ee.psl],
+        # )
+        # return self.make_composite_element([el], ee)
 
     def convert_wire(self, ee):
         if self.bv == -1:
@@ -1237,31 +1194,18 @@ class MadLoader:
             raise ValueError("Multiwire configuration not supported")
 
     def convert_crabcavity(self, ee):
-        self._assert_element_is_thin(ee)
-        # This has to be disabled, as it raises an error when l is assigned to an
-        # expression:
-        # for nn in ["l", "harmon", "lagf", "rv1", "rv2", "rph1", "rph2"]:
-        #     if getattr(ee, nn):
-        #         raise NotImplementedError(f"Invalid value {nn}={getattr(ee, nn)}")
-
-        # ee.volt in MV, sequence.beam.pc in GeV
-        if abs(ee.tilt - np.pi / 2) < 1e-9:
-            el = self.Builder(
-                ee.name,
-                self.classes.RFMultipole,
-                frequency=ee.freq * 1e6,
-                ksl=[-ee.volt / self.sequence.beam.pc * 1e-3],
-                ps=[ee.lag * 360 + 90],
-            )
-            ee.tilt = 0
+        if self.bv == -1:
+            lll = 180 - ee.lag * 360
         else:
-            el = self.Builder(
+            lll = ee.lag * 360
+
+        el = self.Builder(
                 ee.name,
-                self.classes.RFMultipole,
+                self.classes.CrabCavity,
+                length=ee.l,
                 frequency=ee.freq * 1e6,
-                knl=[ee.volt / self.sequence.beam.pc * 1e-3 * self.bv],
-                pn=[ee.lag * self.bv * 360 + 90],  # TODO: Changed sign to match sixtrack
-                # To be checked!!!!
+                crab_voltage=ee.volt * 1e6 * self.bv,
+                lag=lll,
             )
         return self.make_composite_element([el], ee)
 

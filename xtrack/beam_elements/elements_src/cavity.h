@@ -6,47 +6,39 @@
 #ifndef XTRACK_CAVITY_H
 #define XTRACK_CAVITY_H
 
-/*gpufun*/
-void Cavity_track_local_particle(CavityData el, LocalParticle* part0){
+#include <beam_elements/elements_src/track_rf.h>
 
-    #ifndef XSUITE_BACKTRACK
-    double const K_FACTOR = ( ( double )2.0 *PI ) / C_LIGHT;
-    #else
-    double const K_FACTOR = -( ( double )2.0 *PI ) / C_LIGHT;
-    #endif
-    double const volt = CavityData_get_voltage(el);
-    double const freq = CavityData_get_frequency(el);
-    double const lag = CavityData_get_lag(el);
-    double const lag_taper = CavityData_get_lag_taper(el);
-    int64_t const absolute_time = CavityData_get_absolute_time(el);
-    //start_per_particle_block (part0->part)
+GPUFUN
+void Cavity_track_local_particle(CavityData el, LocalParticle* part0)
+{
+    track_rf_particles(
+        /*weight*/                1.,
+        /*part0*/                 part0,
+        /*length*/                CavityData_get_length(el),
+        /*voltage*/               CavityData_get_voltage(el),
+        /*frequency*/             CavityData_get_frequency(el),
+        /*lag*/                   CavityData_get_lag(el),
+        /*transverse_voltage*/    0.,
+        /*transverse_lag*/        0.,
+        /*absolute_time*/         CavityData_get_absolute_time(el),
+        /*order*/                 -1, // not used here
+        /*knl*/                   NULL,
+        /*ksl*/                   NULL,
+        /*pn*/                    NULL,
+        /*ps*/                    NULL,
+        /*num_kicks*/             CavityData_get_num_kicks(el),
+        /*model*/                 CavityData_get_model(el),
+        /*default_model*/         6, // drift-kick-drift-expanded
+        /*integrator*/            CavityData_get_integrator(el),
+        /*default_integrator*/    3, // Uniform
+        /*radiation_flag*/        0, // not used here
+        /*radiation_flag_parent*/ 0, // not used here
+        /*lag_taper*/             CavityData_get_lag_taper(el),
+        /*body_active*/           1,
+        /*edge_entry_active*/     0, // not used here
+        /*edge_exit_active*/      0  // not used here
+    );
 
-        double phase = 0;
-
-        if (absolute_time == 1) {
-            double const t_sim = LocalParticle_get_t_sim(part);
-            int64_t const at_turn = LocalParticle_get_at_turn(part);
-            phase += 2 * PI * at_turn * freq * t_sim;
-        }
-
-        double const   beta0  = LocalParticle_get_beta0(part);
-        double const   zeta   = LocalParticle_get_zeta(part);
-        double const   q      = fabs(LocalParticle_get_q0(part))
-                		        * LocalParticle_get_charge_ratio(part);
-        double const   tau    = zeta / beta0;
-
-        phase  += DEG2RAD  * (lag + lag_taper) - K_FACTOR * freq * tau;
-        // printf("Cavity phase: %e\n", phase);
-
-        double const energy   = q * volt * sin(phase);
-
-        #ifdef XTRACK_CAVITY_PRESERVE_ANGLE
-        LocalParticle_add_to_energy(part, energy, 0);
-        #else
-        LocalParticle_add_to_energy(part, energy, 1);
-        #endif
-
-    //end_per_particle_block
 }
 
-#endif
+#endif  // XTRACK_CAVITY_H

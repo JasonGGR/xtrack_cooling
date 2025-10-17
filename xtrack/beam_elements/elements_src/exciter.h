@@ -8,32 +8,31 @@
 #ifndef XTRACK_EXCITER_H
 #define XTRACK_EXCITER_H
 
-#if !defined( C_LIGHT )
-    #define   C_LIGHT ( 299792458.0 )
-#endif /* !defined( C_LIGHT ) */
+#include <headers/track.h>
 
-/*gpufun*/
+
+GPUFUN
 void Exciter_track_local_particle(ExciterData el, LocalParticle* part0){
 
     // get parameters
     int64_t const order = ExciterData_get_order(el);
-    /*gpuglmem*/ double const* knl = ExciterData_getp1_knl(el, 0);
-    /*gpuglmem*/ double const* ksl = ExciterData_getp1_ksl(el, 0);
-    /*gpuglmem*/ float const* samples = ExciterData_getp1_samples(el, 0);
+    GPUGLMEM double const* knl = ExciterData_getp1_knl(el, 0);
+    GPUGLMEM double const* ksl = ExciterData_getp1_ksl(el, 0);
+    GPUGLMEM float const* samples = ExciterData_getp1_samples(el, 0);
     int64_t const nsamples = ExciterData_get_nsamples(el);
 	int64_t const nduration = ExciterData_get_nduration(el);
     double const sampling_frequency = ExciterData_get_sampling_frequency(el);
     double const frev = ExciterData_get_frev(el);
     int64_t const start_turn = ExciterData_get_start_turn(el);
 
-    #ifdef XSUITE_BACKTRACK
-        #define XTRACK_EXCITER_SIGN (-1)
-    #else
-        #define XTRACK_EXCITER_SIGN (+1)
-    #endif
+    double excit_sign;
+    if (LocalParticle_check_track_flag(part0, XS_FLAG_BACKTRACK)) {
+        excit_sign = -1;
+    } else {
+        excit_sign = 1;
+    }
 
-    //start_per_particle_block (part0->part)
-
+    START_PER_PARTICLE_BLOCK(part0, part);
         // zeta is the absolute path length deviation from the reference particle: zeta = (s - beta0*c*t)
         // but without limits, i.e. it can exceed the circumference (for coasting beams)
         // as the particle falls behind or overtakes the reference particle
@@ -62,8 +61,8 @@ void Exciter_track_local_particle(ExciterData el, LocalParticle* part0){
                     factorial *= kk;
                 }
 
-                dpx += XTRACK_EXCITER_SIGN * (knl[kk] * zre - ksl[kk] * zim) / factorial;
-                dpy += XTRACK_EXCITER_SIGN * (knl[kk] * zim + ksl[kk] * zre) / factorial;
+                dpx += excit_sign * (knl[kk] * zre - ksl[kk] * zim) / factorial;
+                dpy += excit_sign * (knl[kk] * zim + ksl[kk] * zre) / factorial;
 
                 double const zret = zre * x - zim * y;
                 zim = zim * x + zre * y;
@@ -80,10 +79,7 @@ void Exciter_track_local_particle(ExciterData el, LocalParticle* part0){
             LocalParticle_add_to_py(part, + chi * dpy);
 
         }
- 
-
-    //end_per_particle_block
-
+    END_PER_PARTICLE_BLOCK;
 }
 
 #endif

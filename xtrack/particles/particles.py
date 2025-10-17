@@ -12,6 +12,7 @@ from scipy.constants import c as clight
 from scipy.constants import epsilon_0
 
 import xobjects as xo
+import xtrack as xt
 from xobjects.general import Print
 from xobjects import BypassLinked
 
@@ -68,6 +69,10 @@ class Particles(xo.HybridClass):
             (xo.Float64, 'weight'),
             (xo.Float64, 'ax'),
             (xo.Float64, 'ay'),
+            (xo.Float64, 'spin_x'),
+            (xo.Float64, 'spin_y'),
+            (xo.Float64, 'spin_z'),
+            (xo.Float64, 'anomalous_magnetic_moment'),
             (xo.Int64, 'pdg_id'),
             (xo.Int64, 'particle_id'),
             (xo.Int64, 'at_element'),
@@ -114,6 +119,7 @@ class Particles(xo.HybridClass):
 
     def __init__(
             self,
+            pdg_id_0=None,
             _capacity=None,
             _no_reorganize=False,
             **kwargs,
@@ -131,6 +137,8 @@ class Particles(xo.HybridClass):
 
         Parameters
         ----------
+        pdg_id_0 : int or str, optional, define reference mass and charge from
+            PDG id or particle name.
         _capacity: int
             The maximum number of particles that can be stored in the object.
             If not provided, it is inferred from the size of the provided
@@ -216,11 +224,14 @@ class Particles(xo.HybridClass):
 
         accepted_args = set(self._xofields.keys()) | {
             'energy0', 'tau', 'pzeta', 'mass_ratio', 'mass', 'kinetic_energy0',
-            '_context', '_buffer', '_offset', 'p0',
+            '_context', '_buffer', '_offset', 'p0', 'name',
         }
         if set(kwargs.keys()) - accepted_args:
             raise NameError(f'Invalid argument(s) provided: '
                             f'{set(kwargs.keys()) - accepted_args}')
+
+        if pdg_id_0 is not None:
+            _update_kwargs0_from_pdg_id(pdg_id_0, kwargs)
 
         per_part_input_vars = (
             self.per_particle_vars +
@@ -349,6 +360,14 @@ class Particles(xo.HybridClass):
             mask=input_mask,
         )
 
+        # Init chi and charge ratio
+        self._update_chi_charge_ratio(
+            chi=kwargs.get('chi'),
+            charge_ratio=kwargs.get('charge_ratio'),
+            mass_ratio=kwargs.get('mass_ratio'),
+            mask=input_mask,
+        )
+
         # Init energy deviations
         self._update_energy_deviations(
             delta=kwargs.get('delta'),
@@ -366,18 +385,12 @@ class Particles(xo.HybridClass):
             mask=input_mask,
         )
 
-        # Init chi and charge ratio
-        self._update_chi_charge_ratio(
-            chi=kwargs.get('chi'),
-            charge_ratio=kwargs.get('charge_ratio'),
-            mass_ratio=kwargs.get('mass_ratio'),
-            mask=input_mask,
-        )
-
         self.unhide_first_n_particles()
         if isinstance(self._context, xo.ContextCpu) and not _no_reorganize:
             self.reorganize()
 
+        if 'name' in kwargs.keys():
+            self.name = kwargs['name']
 
     @classmethod
     def from_dict(cls, dct, load_rng_state=True, **kwargs):
@@ -1067,7 +1080,10 @@ class Particles(xo.HybridClass):
                     kernel_descriptions=self._kernels,
                 )
                 context.kernels.update(kernels)
-        self.compile_kernels(only_if_needed=True)
+        self.compile_kernels(
+            only_if_needed=True,
+            extra_compile_args=(f"-I{xt.__path__[0]}",),
+        )
 
         if seeds is None:
             seeds = np.random.randint(low=1, high=4e9,
@@ -1219,6 +1235,14 @@ class Particles(xo.HybridClass):
     def p0c(self, value):
         self.p0c[:] = value
 
+    @property
+    def rigidity0(self):
+        rigidity0 = self.p0c / clight / self.q0
+        return self._buffer.context.linked_array_type.from_array(
+            rigidity0,
+            mode='readonly',
+            container=self)
+
     def update_gamma0(self, new_gamma0):
 
         """
@@ -1252,6 +1276,8 @@ class Particles(xo.HybridClass):
     @gamma0.setter
     def gamma0(self, value):
         self.gamma0[:] = value
+
+    
 
     def update_beta0(self, new_beta0):
 
@@ -1299,19 +1325,48 @@ class Particles(xo.HybridClass):
             self._rpp, mode='readonly',
             container=self)
 
+    def _energy0_setitem(self, indx, val):
+        ctx = self._buffer.context
+        temp_gamma0 = ctx.zeros(shape=self._gamma0.shape, dtype=np.float64)
+        temp_gamma0[:] = np.nan
+        temp_gamma0[indx] = val / self.mass0
+        self.update_gamma0(temp_gamma0)
+
     @property
     def energy0(self):
         energy0 = (self.p0c * self.p0c + self.mass0 * self.mass0) ** 0.5
-        return self._buffer.context.linked_array_type.from_array(
-            energy0, mode='readonly',
-            container=self)
+        out  = self._buffer.context.linked_array_type.from_array(
+            energy0,
+            mode='setitem_from_container',
+            container=self,
+            container_setitem_name='_energy0_setitem')
+        return out
+
+    @energy0.setter
+    def energy0(self, value):
+        self.energy0[:] = value
+
+
+    def _kinetic_energy0_setitem(self, indx, val):
+        ctx = self._buffer.context
+        temp_gamma0 = ctx.zeros(shape=self._gamma0.shape, dtype=np.float64)
+        temp_gamma0[:] = np.nan
+        temp_gamma0[indx] = val / self.mass0 + 1
+        self.update_gamma0(temp_gamma0)
 
     @property
     def kinetic_energy0(self):
         kene0 = self.energy0 - self.mass0
-        return self._buffer.context.linked_array_type.from_array(
-            kene0, mode='readonly',
-            container=self)
+        out  = self._buffer.context.linked_array_type.from_array(
+            kene0,
+            mode='setitem_from_container',
+            container=self,
+            container_setitem_name='_kinetic_energy0_setitem')
+        return out
+
+    @kinetic_energy0.setter
+    def kinetic_energy0(self, value):
+        self.kinetic_energy0[:] = value
 
     @property
     def energy(self):
@@ -1394,7 +1449,7 @@ class Particles(xo.HybridClass):
         Add `delta_energy` to the `energy` of the particles object. `delta`,
         'ptau', `rvv` and `rpp` are updated accordingly.
         """
-        self.ptau += delta_energy / self.p0c * self.mass_ratio
+        self.ptau += delta_energy / self.p0c / self.mass_ratio
 
     def set_particle(self, index, set_scalar_vars=False, **kwargs):
         raise NotImplementedError('This functionality has been removed')
@@ -1419,6 +1474,7 @@ class Particles(xo.HybridClass):
 
         src_lines.append('                 int64_t ipart;')
         src_lines.append('                 int64_t endpart;')
+        src_lines.append('                 uint64_t track_flags;')
         src_lines.append('    /*gpuglmem*/ int8_t* io_buffer;')
         src_lines.append('} LocalParticle;')
         src_typedef = '\n'.join(src_lines)
@@ -1432,6 +1488,14 @@ class Particles(xo.HybridClass):
             }
 
             ''')
+
+        # Get track flag
+        src_lines.append('''
+            /*gpufun*/
+            uint64_t LocalParticle_check_track_flag(LocalParticle* part, uint8_t index){
+                return (part->track_flags >> index) & 1;
+            }
+        ''')
 
         # Particles_to_LocalParticle
         src_lines.append('''
@@ -1457,8 +1521,7 @@ class Particles(xo.HybridClass):
         src_lines = []
         src_lines.append('''
             /*gpufun*/
-            void LocalParticle_to_Particles(
-                                            LocalParticle* source,
+            void LocalParticle_to_Particles(LocalParticle* source,
                                             ParticlesData dest,
                                             int64_t id,
                                             int64_t set_scalar){''')
@@ -1749,6 +1812,9 @@ class Particles(xo.HybridClass):
         int64_t check_is_active(LocalParticle* part) {
             int64_t ipart=0;
             while (ipart < part->_num_active_particles){
+                #ifdef XSUITE_RESTORE_LOSS
+                ipart++;
+                #else
                 if (part->state[ipart]<1){
                     LocalParticle_exchange(
                         part, ipart, part->_num_active_particles-1);
@@ -1758,6 +1824,7 @@ class Particles(xo.HybridClass):
                 else{
                     ipart++;
                 }
+                #endif
             }
 
             if (part->_num_active_particles==0){
@@ -1844,6 +1911,11 @@ class Particles(xo.HybridClass):
 
                     /*gpufun*/
                     void global_aperture_check(LocalParticle* part0) {
+                        if (LocalParticle_check_track_flag(
+                            part0, XS_FLAG_IGNORE_GLOBAL_APERTURE)){
+                            return;
+                        }
+
                         //start_per_particle_block (part0->part)
                             double const x = LocalParticle_get_x(part);
                             double const y = LocalParticle_get_y(part);
@@ -1869,9 +1941,9 @@ class Particles(xo.HybridClass):
                         double const p0c = LocalParticle_get_p0c(part);
                         double const charge_ratio = LocalParticle_get_charge_ratio(part);
                         double const chi = LocalParticle_get_chi(part);
-                        double const mass_ratio = chi / charge_ratio;
-                        
-                        ptau += delta_energy/p0c * mass_ratio;
+                        double const mass_ratio = charge_ratio / chi;
+
+                        ptau += delta_energy/p0c / mass_ratio;
 
                         double const old_rpp = LocalParticle_get_rpp(part);
 
@@ -1942,6 +2014,10 @@ class Particles(xo.HybridClass):
         self.py = kwargs.get('py', 0)
         self.ax = kwargs.get('ax', 0)
         self.ay = kwargs.get('ay', 0)
+        self.anomalous_magnetic_moment = kwargs.get('anomalous_magnetic_moment', 0)
+        self.spin_x = kwargs.get('spin_x', 0)
+        self.spin_y = kwargs.get('spin_y', 0)
+        self.spin_z = kwargs.get('spin_z', 0)
 
         pdg_id = kwargs.get('pdg_id')
         try:
@@ -1958,15 +2034,8 @@ class Particles(xo.HybridClass):
 
     @classmethod
     def reference_from_pdg_id(cls, pdg_id, **kwargs):
-        pdg_id = get_pdg_id_from_name(pdg_id)
-        kwargs['pdg_id'] = pdg_id
-        q0 = kwargs.get('q0')
-        mass0 = kwargs.get('mass0')
-        if q0 is None:
-            q, _, _, _ = get_properties_from_pdg_id(pdg_id)
-            kwargs['q0'] = q
-        if mass0 is None:
-            kwargs['mass0'] = get_mass_from_pdg_id(pdg_id)
+
+        _update_kwargs0_from_pdg_id(pdg_id, kwargs)
 
         particle_ref = cls(**kwargs)
         if particle_ref._capacity > 1:
@@ -2079,6 +2148,9 @@ class Particles(xo.HybridClass):
             if _rpp is not None or _rvv is not None:
                 raise ValueError('Setting `delta` and `ptau` by only giving '
                                  '`_rpp` and `_rvv` is not supported.')
+            if any(self.mass_ratio != 1.0):
+                raise ValueError('Need to provide `delta` or `ptau` with '
+                                 'non-default mass ratios.')
             self._delta = 0.0
             delta = self._delta  # Cupy complains if we later assign LinkedArray
 
@@ -2223,3 +2295,14 @@ def _mask_to_where(mask, ctx):
 
 def reference_from_pdg_id(pdg_id, **kwargs):
     return Particles.reference_from_pdg_id(pdg_id, **kwargs)
+
+def _update_kwargs0_from_pdg_id(pdg_id, kwargs):
+        pdg_id = get_pdg_id_from_name(pdg_id)
+        kwargs['pdg_id'] = pdg_id
+        q0 = kwargs.get('q0')
+        mass0 = kwargs.get('mass0')
+        if q0 is None:
+            q, _, _, _ = get_properties_from_pdg_id(pdg_id)
+            kwargs['q0'] = q
+        if mass0 is None:
+            kwargs['mass0'] = get_mass_from_pdg_id(pdg_id)

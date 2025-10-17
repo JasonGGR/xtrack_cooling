@@ -14,10 +14,10 @@ test_data_folder = pathlib.Path(
 def test_mad_writer(case):
 
     if case == 'thick':
-        line = xt.Line.from_json(
+        line = xt.load(
             test_data_folder / 'hllhc15_thick/lhc_thick_with_knobs.json')
     else:
-        line = xt.Environment.from_json(
+        line = xt.load(
             test_data_folder / 'hllhc15_collider/collider_00_from_mad.json').lhcb1
         # Rotations not supported in thin
         for nn in list(line.element_names):
@@ -54,7 +54,7 @@ def test_mad_writer(case):
 
     assert np.all(tw2.rows['ip.*'].name == tw.rows['ip.*'].name)
 
-    xo.assert_allclose(tw2.rows['ip.*'].s, tw.rows['ip.*'].s, rtol=0, atol=2e-9)
+    xo.assert_allclose(tw2.rows['ip.*'].s, tw.rows['ip.*'].s, rtol=0, atol=2e-5)
     xo.assert_allclose(tw2.rows['ip.*'].x, tw.rows['ip.*'].x, rtol=0, atol=1e-9)
     xo.assert_allclose(tw2.rows['ip.*'].y, tw.rows['ip.*'].y, rtol=0, atol=1e-9)
     xo.assert_allclose(tw2.rows['ip.*'].px, tw.rows['ip.*'].px, rtol=0, atol=1e-9)

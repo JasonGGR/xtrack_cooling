@@ -15,7 +15,7 @@ test_data_folder = pathlib.Path(
 @for_all_test_contexts
 def test_orbit_correction_basics(test_context):
 
-    line = xt.Line.from_json(test_data_folder
+    line = xt.load(test_data_folder
                              / 'hllhc15_thick/lhc_thick_with_knobs.json')
     line.build_tracker(_context=test_context)
     tt = line.get_table()
@@ -75,7 +75,7 @@ def test_orbit_correction_basics(test_context):
 @for_all_test_contexts
 def test_orbit_correction_micado(test_context):
 
-    line = xt.Line.from_json(test_data_folder
+    line = xt.load(test_data_folder
         / 'hllhc15_thick/lhc_thick_with_knobs.json')
     line.build_tracker(_context=test_context)
     tt = line.get_table()
@@ -133,7 +133,7 @@ def test_orbit_correction_micado(test_context):
 @for_all_test_contexts
 def test_orbit_correction_customize(test_context):
 
-    line = xt.Line.from_json(test_data_folder
+    line = xt.load(test_data_folder
          / 'hllhc15_thick/lhc_thick_with_knobs.json')
     line.build_tracker(_context=test_context)
     tt = line.get_table()
@@ -202,7 +202,7 @@ def test_orbit_correction_customize(test_context):
 @for_all_test_contexts
 def test_orbit_correction_thread(test_context):
 
-    line = xt.Line.from_json(test_data_folder
+    line = xt.load(test_data_folder
         / 'hllhc15_thick/lhc_thick_with_knobs.json')
     line.build_tracker(_context=test_context)
     tt = line.get_table()
@@ -531,3 +531,158 @@ def test_orbit_correction_tilt_monitors():
 
     # Check that there is no vertical reading in the tilted bpm BPMs
     xo.assert_allclose(correction.y_correction._position_before, 0, atol=1e-15, rtol=0)
+
+def test_orbit_correction_with_limits():
+
+    line = xt.load(test_data_folder
+                             / 'hllhc15_thick/lhc_thick_with_knobs.json')
+    line.build_tracker()
+    tt = line.get_table()
+
+    # Define elements to be used as monitors for orbit correction
+    tt_monitors = tt.rows['bpm.*','.*(?<!_entry)$','.*(?<!_exit)$']
+    line.steering_monitors_x = tt_monitors.name
+    line.steering_monitors_y = tt_monitors.name
+
+    # Define elements to be used as correctors for orbit correction
+    tt_h_correctors = tt.rows['mcb.*'].rows[r'.*h\..*']
+    line.steering_correctors_x = tt_h_correctors.name
+    tt_v_correctors = tt.rows['mcb.*'].rows[r'.*v\..*']
+    line.steering_correctors_y = tt_v_correctors.name
+
+    # Reference twiss (no misalignments)
+    tw_ref = line.twiss4d()
+
+    # Introduce misalignments on all quadrupoles
+    tt = line.get_table()
+    tt_quad = tt.rows[tt.element_type == 'Quadrupole']
+    rgen = np.random.RandomState(1) # fix seed for random number generator
+    shift_x = rgen.randn(len(tt_quad)) * 0.01e-3 # 0.01 mm rms shift on all quads
+    shift_y = rgen.randn(len(tt_quad)) * 0.01e-3 # 0.01 mm rms shift on all quads
+    for nn_quad, sx, sy in zip(tt_quad.name, shift_x, shift_y):
+        line.element_refs[nn_quad].shift_x = sx
+        line.element_refs[nn_quad].shift_y = sy
+
+    # Twiss before correction
+    tw_before = line.twiss4d()
+
+    # Define limits for correctors (in radians)
+    limits_x = (-1e-6, 1e-6)  # 1 urad
+    limits_y = (-1e-6, 1e-6)  # 1 urad
+
+    # Orbit correction without limits as reference
+    orbit_correction_basic_no_limits = line.correct_trajectory(twiss_table=tw_ref)
+    
+    #print(np.max(np.abs(orbit_correction_basic_no_limits.x_correction.get_kick_values())))
+    #print(np.max(np.abs(orbit_correction_basic_no_limits.y_correction.get_kick_values())))
+
+    #Assert that at least one corrector is beyond each of the limits
+    assert np.any(np.abs(orbit_correction_basic_no_limits.x_correction.get_kick_values()) > limits_x[1])
+    assert np.any(np.abs(orbit_correction_basic_no_limits.y_correction.get_kick_values()) > limits_y[1])
+    orbit_correction_basic_no_limits.clear_correction_knobs()
+
+    # Set limits on the line
+    line.corrector_limits_x = limits_x
+    line.corrector_limits_y = limits_y
+
+    # First test: Basic method with limits
+    orbit_correction_basic = line.correct_trajectory(twiss_table=tw_ref)
+
+    # Twiss after basic correction
+    tw_after_basic = line.twiss4d()
+
+    # Extract correction strength from basic method
+    kicks_x_basic = orbit_correction_basic.x_correction.get_kick_values()
+    kicks_y_basic = orbit_correction_basic.y_correction.get_kick_values()
+
+    # Verify that the basic correction stays within limits
+    assert np.all(kicks_x_basic >= limits_x[0])
+    assert np.all(kicks_x_basic <= limits_x[1])
+    assert np.all(kicks_y_basic >= limits_y[0])
+    assert np.all(kicks_y_basic <= limits_y[1])
+
+    # Verify that the orbit is corrected in the correct direction with basic method
+    assert tw_before.x.std() > tw_after_basic.x.std()
+    assert tw_before.y.std() > tw_after_basic.y.std()
+
+    # Clear correction
+    orbit_correction_basic.clear_correction_knobs()
+
+    # Second test: Micado method with limits
+    n_micado = 5
+    orbit_correction_micado = line.correct_trajectory(twiss_table=tw_ref, n_micado=n_micado, n_iter=1)
+
+    # Twiss after micado correction
+    tw_after_micado = line.twiss4d()
+
+    # Extract correction strength from micado method
+    kicks_x_micado = orbit_correction_micado.x_correction.get_kick_values()
+    kicks_y_micado = orbit_correction_micado.y_correction.get_kick_values()
+
+    # Verify that the micado correction stays within limits
+    assert np.all(kicks_x_micado >= limits_x[0])
+    assert np.all(kicks_x_micado <= limits_x[1])
+    assert np.all(kicks_y_micado >= limits_y[0])
+    assert np.all(kicks_y_micado <= limits_y[1])
+
+    # Verify that the orbit is corrected with micado method
+    assert tw_after_micado.y.std() < tw_before.y.std()
+    assert tw_after_micado.x.std() < tw_before.x.std()
+
+    # Verify that micado uses at most the specified number of correctors
+    assert np.sum(np.abs(kicks_x_micado) > 1e-10) <= n_micado
+    assert np.sum(np.abs(kicks_y_micado) > 1e-10) <= n_micado
+
+    # Compare the two methods
+    # Basic method should use more correctors
+    assert np.sum(np.abs(kicks_x_basic) > 1e-10) > n_micado
+    assert np.sum(np.abs(kicks_y_basic) > 1e-10) > n_micado
+
+
+def test_orbit_correction_with_delta_zero():
+
+    line = xt.load(test_data_folder
+                             / 'hllhc15_thick/lhc_thick_with_knobs.json')
+    tt = line.get_table()
+
+    # Define elements to be used as monitors for orbit correction
+    # (for LHC all element names starting by "bpm" and not ending by "_entry" or "_exit")
+    tt_monitors = tt.rows['bpm.*'].rows['.*(?<!_entry)$'].rows['.*(?<!_exit)$']
+    line.steering_monitors_x = tt_monitors.name
+    line.steering_monitors_y = tt_monitors.name
+
+    # Define elements to be used as correctors for orbit correction
+    # (for LHC all element namesstarting by "mcb.", containing "h." or "v.")
+    tt_h_correctors = tt.rows['mcb.*'].rows[r'.*h\..*']
+    line.steering_correctors_x = tt_h_correctors.name
+    tt_v_correctors = tt.rows['mcb.*'].rows[r'.*v\..*']
+    line.steering_correctors_y = tt_v_correctors.name
+
+    # Reference twiss (no misalignments)
+    tw_ref = line.twiss4d()
+
+    # Create orbit correction object without running the correction
+    orbit_correction = line.correct_trajectory(twiss_table=tw_ref, run=False,
+                                            n_singular_values=250)
+
+    delta0 = 1e-4
+
+    # Twiss before correction
+    tw_before = line.twiss4d(delta0=delta0)
+    assert tw_before.x.std() > 7e-5
+    assert tw_before.y.std() < 1e-10
+
+    # Correct
+    orbit_correction.correct(delta0=delta0)
+
+    # Twiss after correction
+    tw_after = line.twiss4d(delta0=delta0)
+    assert tw_after.x.std() < 2e-5
+    assert tw_after.y.std() < 1e-10
+
+    # Extract correction strength
+    kicks_x = orbit_correction.x_correction.get_kick_values()
+    kicks_y = orbit_correction.y_correction.get_kick_values()
+
+    assert np.abs(kicks_x).max() < 2.5e-6
+    assert np.abs(kicks_y).max() < 1e-15

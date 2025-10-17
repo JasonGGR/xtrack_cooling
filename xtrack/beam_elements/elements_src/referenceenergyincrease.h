@@ -6,20 +6,21 @@
 #ifndef XTRACK_REFERENCEENERGYINCREASE_H
 #define XTRACK_REFERENCEENERGYINCREASE_H
 
-/*gpufun*/
+#include <headers/track.h>
+
+
+GPUFUN
 void ReferenceEnergyIncrease_track_local_particle(ReferenceEnergyIncreaseData el,
 		                                  LocalParticle* part0){
 
     double Delta_p0c = ReferenceEnergyIncreaseData_get_Delta_p0c(el);
 
-    #ifdef XSUITE_BACKTRACK
+    if (LocalParticle_check_track_flag(part0, XS_FLAG_BACKTRACK)) {
         Delta_p0c = -Delta_p0c;
-    #endif
+    }
 
-    //start_per_particle_block (part0->part)
-	LocalParticle_update_p0c(part,
-		LocalParticle_get_p0c(part) + Delta_p0c);
-    //end_per_particle_block
-
+    START_PER_PARTICLE_BLOCK(part0, part);
+        LocalParticle_update_p0c(part, LocalParticle_get_p0c(part) + Delta_p0c);
+    END_PER_PARTICLE_BLOCK;
 }
 #endif
