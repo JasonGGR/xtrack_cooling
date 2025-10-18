@@ -8,6 +8,7 @@ import numpy as np
 from numbers import Number
 from scipy.special import factorial
 import json
+import os
 
 import xobjects as xo
 import xtrack as xt
@@ -4222,7 +4223,7 @@ class ElectronCooler(BeamElement):
             longitudinal component of the magnetic field. This is a measure
             of the magnetic field quality. With the ideal magnetic field quality 
             being 0.
-        space_charge : float, optional
+        space_charge_factor : float, optional
             Whether space charge of electron beam is enabled. 0 is off and 1 is on.
 
     """
@@ -4337,8 +4338,11 @@ class CWLaser(BeamElement):
     
     
     _extra_c_sources = [
-            _pkg_root.joinpath('headers/constants.h'),
-            _pkg_root.joinpath('beam_elements/elements_src/cw_laser.h')]
+        '#include <headers/constants.h>',
+        '#include <beam_elements/elements_src/cw_laser.h>',
+    ]
+    # _pkg_root.joinpath('headers/constants.h'),
+    # _pkg_root.joinpath('beam_elements/elements_src/cw_laser.h')]
 
     
     def __init__(self,  laser_direction_nx =  0,
@@ -4398,8 +4402,10 @@ class PulsedLaser(BeamElement):
     '''
 
     # Map of Excitation:
-    fname = _pkg_root.joinpath('beam_elements/elements_src/laser_excitation_maps/pulsed_excitation_map.json')
-    with open(fname, 'r') as f:
+    current_directory = os.path.dirname(__file__)
+    #fname = _pkg_root.joinpath('beam_elements/elements_src/laser_excitation_maps/pulsed_excitation_map.json')
+    #with open(fname, 'r') as f:
+    with open(os.path.join(current_directory, 'elements_src/laser_excitation_maps/pulsed_excitation_map.json'), 'r') as f:
         map_data = json.load(f)
         excitation_map = np.array(map_data['Excitation probability'])
 
@@ -4429,10 +4435,12 @@ class PulsedLaser(BeamElement):
     
     _depends_on = [RandomUniformAccurate]
     
+    #_pkg_root.joinpath('headers/constants.h'),
+    #_pkg_root.joinpath('beam_elements/elements_src/pulsed_laser.h')]
     _extra_c_sources = [
-            _pkg_root.joinpath('headers/constants.h'),
-            _pkg_root.joinpath('beam_elements/elements_src/pulsed_laser.h')]
-    
+        '#include <headers/constants.h>',
+        '#include <beam_elements/elements_src/pulsed_laser.h>',
+    ]
     _internal_record_class = PulsedLaserRecord
 
     
@@ -4473,8 +4481,10 @@ class PulsedLaser(BeamElement):
         self.record_flag           =  record_flag
         
         # Map of Excitation:
-        fname = _pkg_root.joinpath('beam_elements/elements_src/laser_excitation_maps/pulsed_excitation_map.json')
-        with open(fname, 'r') as f:
+        #fname = _pkg_root.joinpath('beam_elements/elements_src/laser_excitation_maps/pulsed_excitation_map.json')
+        #with open(fname, 'r') as f:
+        current_directory = os.path.dirname(__file__)
+        with open(os.path.join(current_directory, 'elements_src/laser_excitation_maps/pulsed_excitation_map.json'), 'r') as f:
             map_data = json.load(f)
             self.Excitation = np.array(map_data['Excitation probability'])
             self.N_OmegaRabiTau_values, self.N_DeltaDetuningTau_values = np.shape(self.Excitation)
