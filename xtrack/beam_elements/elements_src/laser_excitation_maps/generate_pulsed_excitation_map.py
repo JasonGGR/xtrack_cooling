@@ -1,3 +1,11 @@
+'''
+Generate a map of the excitation probability for pulsed laser excitation
+as a function of detuning \Delta and Rabi frequency \Omega_0.  
+
+Author: Peter Martin Kruyt
+Date: 2025-05-01
+'''
+
 import numpy as np
 from scipy.integrate import solve_ivp
 import json
