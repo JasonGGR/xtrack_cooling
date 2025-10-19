@@ -55,7 +55,7 @@ void PulsedLaser_track_local_particle(PulsedLaserData el, LocalParticle* part0){
     // Maximum laser intensity (at the focal point)
     double I0 = sqrt(2/PI)*(laser_energy/laser_sigma_t)/(PI*POW2(w0)); // W/m^2
 
-    //start_per_particle_block (part0->part)
+    START_PER_PARTICLE_BLOCK(part0, part);
     
         double state = LocalParticle_get_state(part);
         double delta = LocalParticle_get_delta(part);
@@ -203,7 +203,7 @@ void PulsedLaser_track_local_particle(PulsedLaserData el, LocalParticle* part0){
             }
             }
             
-	//end_per_particle_block
+	END_PER_PARTICLE_BLOCK;
     
 }
 

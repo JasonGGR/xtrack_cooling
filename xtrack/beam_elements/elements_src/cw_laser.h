@@ -41,7 +41,7 @@ void CWLaser_track_local_particle(CWLaserData el, LocalParticle* part0){
     //number of excitations that will occur over the entire cooling section:        
     double number_of_excitations = cooling_section_length/(beta0*gamma0*C_LIGHT*ion_excited_lifetime);
 
-    //start_per_particle_block (part0->part)
+    START_PER_PARTICLE_BLOCK(part0, part);
     
         double state = LocalParticle_get_state(part);
         double delta = LocalParticle_get_delta(part);
@@ -132,7 +132,7 @@ void CWLaser_track_local_particle(CWLaserData el, LocalParticle* part0){
                 
             }
             }    
-	//end_per_particle_block
+	END_PER_PARTICLE_BLOCK;
     
 }
 
