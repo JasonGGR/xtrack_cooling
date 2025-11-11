@@ -1,7 +1,10 @@
 import numpy as np
 import xtrack as xt
-import xdeps as xd
 from enum import Enum
+
+from xdeps.refs import is_ref
+from xtrack.functions import Functions
+
 
 LUA_VARS_PER_CHUNK = 200
 
@@ -13,7 +16,7 @@ def expr_to_mad_str(expr):
 
     expr_str = str(expr)
 
-    fff = xt.line.Functions()
+    fff = Functions()
     for nn in fff._mathfunctions:
         expr_str = expr_str.replace(f'f.{nn}(', f'{nn}(')
         expr_str = expr_str.replace(f'f[\'{nn}\'](', f'{nn}(')
@@ -49,7 +52,7 @@ def _replace_var_dots_with_underscores(expr, substituted_vars):
     return expr
 
 def mad_str_or_value(var):
-    if _is_ref(var):
+    if is_ref(var):
         out = expr_to_mad_str(var)
         out = out.strip('._expr')
         return out
@@ -59,7 +62,7 @@ def mad_str_or_value(var):
 def mad_assignment(lhs, rhs, mad_type=MadType.MADX, substituted_vars=None):
     if mad_type == MadType.MADNG:
         lhs = lhs.replace('.', '_')  # replace '.' with '_' for MADNG compatibility
-    if _is_ref(rhs):
+    if is_ref(rhs):
         rhs = mad_str_or_value(rhs)
         rhs = _replace_var_dots_with_underscores(rhs, substituted_vars) if mad_type == MadType.MADNG else rhs
     if isinstance(rhs, str):
@@ -90,7 +93,6 @@ def _handle_tokens_madng(tokens, substituted_vars):
     return tokens
 
 _ge = xt.elements._get_expr
-_is_ref = xd.refs.is_ref
 
 def _knl_ksl_to_mad(mult):
     weight = 1
@@ -111,16 +113,23 @@ def _knl_ksl_to_mad(mult):
     return knl_token, ksl_token
 
 def _get_eref(line, name):
-    return line.element_refs[name]
+    return line.ref.elements[name]
 
-def _handle_transforms(tokens, el, mad_type=MadType.MADX, substituted_vars=None):
-    if el.shift_x._expr is not None or el.shift_x._value:
-        tokens.append(mad_assignment('dx', _ge(el.shift_x), mad_type, substituted_vars=substituted_vars))
-    if el.shift_y._expr is not None or el.shift_y._value:
-        tokens.append(mad_assignment('dy', _ge(el.shift_y), mad_type, substituted_vars=substituted_vars))
-    if el.rot_s_rad._expr is not None or el.rot_s_rad._value:
-        tokens.append(mad_assignment('tilt', _ge(el.rot_s_rad), mad_type, substituted_vars=substituted_vars))
-    if el.shift_s._expr is not None or el.shift_s._value:
+def _handle_transforms(tokens, el_ref, mad_type=MadType.MADX, substituted_vars=None):
+    def _defined_and_nonzero(field_name):
+        el_instance = el_ref._value
+        if not hasattr(el_instance, field_name):
+            return False
+        field = getattr(el_ref, field_name)
+        return field._expr is not None or field._value != 0
+
+    if _defined_and_nonzero('shift_x'):
+        tokens.append(mad_assignment('dx', _ge(el_ref.shift_x), mad_type, substituted_vars=substituted_vars))
+    if _defined_and_nonzero('shift_y'):
+        tokens.append(mad_assignment('dy', _ge(el_ref.shift_y), mad_type, substituted_vars=substituted_vars))
+    if _defined_and_nonzero('rot_s_rad'):
+        tokens.append(mad_assignment('tilt', _ge(el_ref.rot_s_rad), mad_type, substituted_vars=substituted_vars))
+    if _defined_and_nonzero('shift_s'):
         raise NotImplementedError("shift_s is not yet supported in mad writer")
 
 def cavity_to_mad_str(eref, mad_type=MadType.MADX, substituted_vars=None):
@@ -185,11 +194,11 @@ def marker_to_mad_str(name, line, mad_type=MadType.MADX, substituted_vars=None):
     """
     # if name.endswith('_entry'):
     #      parent_name = name.replace('_entry', '')
-    #      if (parent_name in line.element_dict):
+    #      if (parent_name in line._element_dict):
     #          return None
     # if name.endswith('_exit'):
     #     parent_name = name.replace('_exit', '')
-    #     if (parent_name in line.element_dict):
+    #     if (parent_name in line._element_dict):
     #         return None
     if mad_type == MadType.MADX:
         return 'marker'
@@ -394,6 +403,7 @@ def bend_to_mad_str(eref, bend_type='sbend', mad_type=MadType.MADX, substituted_
         tokens.append(mad_assignment('kill_ent_fringe', edge_entry_active_val, mad_type, substituted_vars=substituted_vars))
         tokens.append(mad_assignment('kill_exi_fringe', edge_exit_active_val, mad_type, substituted_vars=substituted_vars))
     tokens.append(mad_assignment('k1', _ge(eref.k1), mad_type, substituted_vars=substituted_vars))
+    tokens.append(mad_assignment('k2', _ge(eref.k2), mad_type, substituted_vars=substituted_vars))
     knl_token, ksl_token = _knl_ksl_to_mad(eref)
     tokens.append(knl_token)
     tokens.append(ksl_token)
@@ -551,7 +561,7 @@ def element_to_mad_str(
     Generic converter for elements to MADX/MAD-NG.
     """
 
-    el = line.element_dict[name]
+    el = line._element_dict[name]
     eref = _get_eref(line, name)
     parent_flag = hasattr(el, '_parent')
 
@@ -565,6 +575,8 @@ def element_to_mad_str(
             tokens = xsuite_to_mad_converters[el._parent.__class__](eref, mad_type=mad_type, substituted_vars=substituted_vars)
             if isinstance(el, xt.beam_elements.slice_elements_edge._ThinSliceEdgeBase):
                 tokens.append(mad_assignment('kill_body', True, mad_type, substituted_vars=substituted_vars))
+        else:
+            raise NotImplementedError(f"Element of type {el.__class__} not supported yet in MAD writer")
     else:
         tokens = xsuite_to_mad_converters[el.__class__](eref, mad_type=mad_type, substituted_vars=substituted_vars)
 
@@ -612,10 +624,9 @@ def to_madx_sequence(line, name='seq', mode='sequence'):
 
         for nn in line.element_names:
 
-
-            el = line.element_dict[nn]
+            el = line._element_dict[nn]
             el_str = element_to_mad_str(nn, line, mad_type=MadType.MADX)
-            if nn + '_tilt_entry' in line.element_dict:
+            if nn + '_tilt_entry' in line._element_dict:
                 el_str += ", " + mad_assignment('tilt',
                             _ge(line.element_refs[nn + '_tilt_entry'].angle) / 180. * np.pi,
                             mad_type=MadType.MADX)
@@ -672,7 +683,7 @@ def to_madng_sequence(line, name='seq', mode='sequence'):
         else:
             s_dict[nn] = 0.5 * (tt.s[ii] + tt.s[ii+1])
 
-        el = line.element_dict[nn]
+        el = line._element_dict[nn]
 
         el_str = element_to_mad_str(nn, line, mad_type=MadType.MADNG, substituted_vars=substituted_vars)
 

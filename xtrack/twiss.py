@@ -1730,9 +1730,14 @@ def _compute_chromatic_functions(line, init, delta_chrom, steps_r_matrix,
     dzeta -= dzeta[0]
     dzeta = np.array(dzeta)
 
-    slip_factor = -dzeta[-1] / tw_chrom_res[0].circumference
-    momentum_compaction_factor = (slip_factor
-                        + 1/tw_chrom_res[0].particle_on_co._xobject.gamma0[0]**2)
+    circumference = tw_chrom_res[0].circumference
+    if circumference > 0:
+        slip_factor = -dzeta[-1] / tw_chrom_res[0].circumference
+        momentum_compaction_factor = (slip_factor
+                            + 1/tw_chrom_res[0].particle_on_co._xobject.gamma0[0]**2)
+    else:
+        slip_factor = np.nan
+        momentum_compaction_factor = np.nan
 
     cols_chrom = {'dmux': dmux, 'dmuy': dmuy, 'dzeta': dzeta,
                   'bx_chrom': bx_chrom, 'by_chrom': by_chrom,
@@ -2814,7 +2819,7 @@ def _build_auxiliary_tracker_with_extra_markers(tracker, at_s, marker_prefix,
         else:
             algorithm = 'regen_all_drifts'
 
-    auxline = xt.Line(elements=tracker.line.element_dict.copy(),
+    auxline = xt.Line(elements=tracker.line._element_dict.copy(),
                       element_names=list(tracker.line.element_names).copy())
     if tracker.line.particle_ref is not None:
         auxline.particle_ref = tracker.line.particle_ref.copy()

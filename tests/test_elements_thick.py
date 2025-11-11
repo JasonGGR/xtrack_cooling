@@ -633,14 +633,11 @@ def test_import_thick_bend_from_madx(use_true_thick_bends, with_knobs, bend_type
     # we assume k0_from_h=False, even if its value evaluates to zero. In MAD-X
     # k0 = h if k0 is zero, but this is not feasible to implement in Xtrack now.
     xo.assert_allclose(elem.k0, 0 if with_knobs else 0.05, atol=1e-14)
+    xo.assert_allclose(elem.k2, 0.4, atol=1e-14)
     xo.assert_allclose(elem.h, 0.05, atol=1e-14)  # h = angle / L
+    xo.assert_allclose(elem.knl, 0.0, atol=1e-14)
     xo.assert_allclose(elem.ksl, 0.0, atol=1e-14)
 
-    xo.assert_allclose(
-        elem.knl,
-        np.array([0, 0, 0.8, 0, 0, 0]),  # knl = [0, 0, k2 * L, 0, 0]
-        atol=1e-14,
-    )
 
     # Edges:
     xo.assert_allclose(elem.edge_entry_fint, 0.5, atol=1e-14)
@@ -667,14 +664,10 @@ def test_import_thick_bend_from_madx(use_true_thick_bends, with_knobs, bend_type
     # Element:
     xo.assert_allclose(elem.length, 3.0, atol=1e-14)
     xo.assert_allclose(elem.k0, 0.4, atol=1e-14)
+    xo.assert_allclose(elem.k2, 0.8, atol=1e-14)
     xo.assert_allclose(elem.h, 0.2 / 3.0, atol=1e-14)  # h = angle / length
     xo.assert_allclose(elem.ksl, 0.0, atol=1e-14)
-
-    xo.assert_allclose(
-        elem.knl,
-        np.array([0, 0, 2.4, 0, 0, 0]),  # knl = [0, 0, k2 * L, 0, 0]
-        atol=1e-14,
-    )
+    xo.assert_allclose(elem.ksl, 0.0, atol=1e-14)
 
     # Edges:
     xo.assert_allclose(elem.edge_entry_fint, 1.0, atol=1e-14)
@@ -779,7 +772,8 @@ def test_import_thick_bend_from_madx_and_slice(
         xo.assert_allclose(elem.weight, 0.5, atol=1e-14)
         xo.assert_allclose(elem._parent.length, 2.0, atol=1e-14)
         xo.assert_allclose(elem._parent.k0, 0.2, atol=1e-14)
-        xo.assert_allclose(elem._parent.knl, [0., 0, 0.8, 0, 0, 0], atol=1e-14)
+        xo.assert_allclose(elem._parent.k2, 0.4, atol=1e-14)
+        xo.assert_allclose(elem._parent.knl, 0, atol=1e-14)
         xo.assert_allclose(elem._parent.ksl, 0, atol=1e-14)
         xo.assert_allclose(elem._parent.h, 0.05, atol=1e-14)
 
@@ -803,14 +797,16 @@ def test_import_thick_bend_from_madx_and_slice(
         xo.assert_allclose(elem.weight, 0.5, atol=1e-14)
         xo.assert_allclose(elem._parent.length, 3.0, atol=1e-14)
         xo.assert_allclose(elem._parent.k0, 0.4, atol=1e-14)
-        xo.assert_allclose(elem._parent.knl, [0., 0, 2.4, 0, 0, 0], atol=1e-14)
+        xo.assert_allclose(elem._parent.k2, 0.8, atol=1e-14)
+        xo.assert_allclose(elem._parent.knl, 0, atol=1e-14)
         xo.assert_allclose(elem._parent.ksl, 0, atol=1e-14)
         xo.assert_allclose(elem._parent.h, 0.2/3, atol=1e-14)
 
         xo.assert_allclose(elem._xobject.weight, 0.5, atol=1e-14)
         xo.assert_allclose(elem._xobject._parent.length, 3.0, atol=1e-14)
         xo.assert_allclose(elem._xobject._parent.k0, 0.4, atol=1e-14)
-        xo.assert_allclose(elem._xobject._parent.knl, [0., 0, 2.4, 0, 0, 0], atol=1e-14)
+        xo.assert_allclose(elem._xobject._parent.k2, 0.8, atol=1e-14)
+        xo.assert_allclose(elem._xobject._parent.knl, 0, atol=1e-14)
         xo.assert_allclose(elem._xobject._parent.ksl, 0, atol=1e-14)
         xo.assert_allclose(elem._xobject._parent.h, 0.2/3, atol=1e-14)
 
@@ -1474,7 +1470,7 @@ def test_solenoid_shifted_and_rotated_multipolar_kick(test_context):
     line_test = xt.Line(elements=[solenoid])
     line_test.build_tracker(_context=test_context)
 
-    elements_ref = [solenoid_no_kick] + 3 * [
+    elements_sol = [solenoid_no_kick] + 3 * [
         xt.XYShift(dx=mult_shift_x),
         xt.YRotation(angle=np.rad2deg(-mult_rot_y_rad)),
         kick,
@@ -1482,7 +1478,7 @@ def test_solenoid_shifted_and_rotated_multipolar_kick(test_context):
         xt.XYShift(dx=-mult_shift_x),
         solenoid_no_kick
     ]
-    line_ref = xt.Line(elements=elements_ref)
+    line_ref = xt.Line(elements=elements_sol)
     line_ref.build_tracker(_context=test_context)
 
     p0 = xt.Particles(x=1e-2, px=-2e-4, y=-2e-2, py=3e-4, zeta=1e-2, delta=1e-3)
@@ -1572,14 +1568,14 @@ def test_solenoid_multipole_shifts(shift_x, shift_y, test_element_name):
     test_sol.mult_shift_y = shift_y
 
     tw = line.twiss(
-        _continue_if_lost=True,
+        #_continue_if_lost=True,
         start=xt.START,
         end=xt.END,
         betx=BETX,
         bety=BETY,
         px=PX0)
     tw_sol = sol_line.twiss(
-        _continue_if_lost=True,
+        #_continue_if_lost=True,
         start=xt.START,
         end=xt.END,
         betx=BETX,

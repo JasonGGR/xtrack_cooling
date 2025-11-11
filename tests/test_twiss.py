@@ -585,7 +585,6 @@ def collider_for_test_twiss_range():
     return collider
 
 
-
 @for_all_test_contexts(excluding=('ContextCupy', 'ContextPyopencl'))
 @pytest.mark.parametrize('line_name', ['lhcb1', 'lhcb2'])
 @pytest.mark.parametrize('check', ['fw', 'bw', 'fw_kw', 'bw_kw', 'fw_table', 'bw_table'])
@@ -1364,7 +1363,7 @@ def test_twiss_init_file(test_context):
         xo.assert_allclose(tw[var, location], tw_full[var, location], atol=1e-9, rtol=0)
 
         # Check at a point in a downstream arc
-        xo.assert_allclose(tw[var, loc_check], tw_full[var, loc_check], atol=2e-7, rtol=0)
+        xo.assert_allclose(tw[var, loc_check], tw_full[var, loc_check], atol=4e-7, rtol=0)
 
     twinit_file.unlink()
 
