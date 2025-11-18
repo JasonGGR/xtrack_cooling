@@ -783,6 +783,10 @@ def test_load_b2_with_bv_minus_one(tmp_path):
         is_rbend = isinstance(e4, xt.RBend)
 
         for kk in d2.keys():
+
+            if kk == 'prototype':
+                continue  # is always None from cpymad
+
             if kk in ('__class__', 'model', 'side'):
                 assert d2[kk] == d4[kk]
                 continue
@@ -911,7 +915,7 @@ def test_import_seq_length():
     env = xt.load(string=sequence, format='madx')
 
     tt = env.line.get_table()
-    assert np.all(tt.name == np.array(['drift_1', 'qu1', 'drift_2', '_end_point']))
+    assert np.all(tt.name == np.array(['||drift_1', 'qu1', '||drift_2', '_end_point']))
     xo.assert_allclose(tt['s'], np.array([ 0., 18., 20., 30.]), rtol=0, atol=1e-15)
     assert env.line.builder.length == 30
 
@@ -1172,3 +1176,47 @@ def test_solenoid_zero_length():
     xo.assert_allclose(env['sol4'].length, 0.0, rtol=0, atol=1e-12)
     xo.assert_allclose(env['sol5'].length, 0.0, rtol=0, atol=1e-12)
     xo.assert_allclose(env['sol6'].length, 0.0, rtol=0, atol=1e-12)
+
+def test_bend_k0_neq_h():
+
+    mad_src = """
+        a = 0.1;
+        b1: sbend, l=2.0, angle:=a, k0:=0.2*a, e1=0.02, e2=0.03, fint=1.5, hgap=0.04;
+        seq: sequence, l=2.0;
+        b1: b1, at=1;
+        endsequence;
+    """
+
+    mad = Madx()
+    mad.input(mad_src)
+    mad.beam()
+    mad.use('seq')
+
+    lmad = xt.Line.from_madx_sequence(mad.sequence.seq, deferred_expressions=True)
+    env = xt.load(string=mad_src, format='madx')
+    lenv = env['seq']
+
+    xo.assert_allclose(lenv['b1'].length,
+                    lmad['b1'].length, rtol=0, atol=1e-12)
+    xo.assert_allclose(lenv['b1'].angle,
+                    lmad['b1'].angle, rtol=0, atol=1e-12)
+    xo.assert_allclose(lenv['b1'].k0,
+                    lmad['b1'].k0, rtol=0, atol=1e-12)
+    xo.assert_allclose(lenv['b1'].h,
+                    lmad['b1'].h, rtol=0, atol=1e-12)
+    xo.assert_allclose(lenv['b1'].edge_entry_angle,
+                    lmad['b1'].edge_entry_angle, rtol=0, atol=1e-12)
+    xo.assert_allclose(lenv['b1'].edge_exit_angle,
+                    lmad['b1'].edge_exit_angle, rtol=0, atol=1e-12)
+    xo.assert_allclose(lenv['b1'].edge_entry_fint,
+                    lmad['b1'].edge_entry_fint, rtol=0, atol=1e-12)
+    xo.assert_allclose(lenv['b1'].edge_exit_fint,
+                        lmad['b1'].edge_exit_fint, rtol=0, atol=1e-12)
+    xo.assert_allclose(lenv['b1'].edge_entry_hgap,
+                        lmad['b1'].edge_entry_hgap, rtol=0, atol=1e-12)
+    xo.assert_allclose(lenv['b1'].edge_exit_hgap,
+                        lmad['b1'].edge_exit_hgap, rtol=0, atol=1e-12)
+    xo.assert_allclose(lenv['b1'].edge_entry_angle_fdown,
+                    lmad['b1'].edge_entry_angle_fdown, rtol=0, atol=1e-12)
+    xo.assert_allclose(lenv['b1'].edge_exit_angle_fdown,
+                    lmad['b1'].edge_exit_angle_fdown, rtol=0, atol=1e-12)

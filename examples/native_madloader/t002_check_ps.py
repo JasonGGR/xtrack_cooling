@@ -3,8 +3,8 @@ import xtrack as xt
 import xobjects as xo
 import numpy as np
 
-env = xt.load('../../test_data/ps_sftpro/ps.seq')
-env.vars.load('../../test_data/ps_sftpro/ps_hs_sftpro.str')
+env = xt.load(['../../test_data/ps_sftpro/ps.seq',
+              '../../test_data/ps_sftpro/ps_hs_sftpro.str'])
 env.ps.set_particle_ref('proton', p0c=450e9)
 
 mad = Madx()
@@ -41,7 +41,7 @@ for nn_test, nn_ref in zip(ltest_names, lref_names):
 
 xo.assert_allclose(
     tt_ref_nodr.rows[lref_names].s_center, tt_test_nodr.rows[ltest_names].s_center,
-    rtol=0, atol=5e-8)
+    rtol=0, atol=1e-9)
 
 for nn in ltest_names:
     print(f'Checking: {nn}                     ', end='\r', flush=True)
@@ -96,3 +96,13 @@ xo.assert_allclose(twtest.betx[-1], twref.betx[-1], rtol=1e-6, atol=0)
 xo.assert_allclose(twtest.bety[-1], twref.bety[-1], rtol=1e-6, atol=0)
 xo.assert_allclose(twtest.dx[-1], twref.dx[-1], rtol=0, atol=1e-6)
 xo.assert_allclose(twtest.dy[-1], twref.dy[-1], rtol=1e-6, atol=1e-6)
+xo.assert_allclose(twtest.dpx[-1], twref.dpx[-1], rtol=0, atol=1e-6)
+xo.assert_allclose(twtest.dpy[-1], twref.dpy[-1], rtol=0, atol=1e-6)
+xo.assert_allclose(twtest.mux[-1], twref.mux[-1], rtol=1e-6, atol=0)
+xo.assert_allclose(twtest.muy[-1], twref.muy[-1], rtol=1e-6, atol=0)
+xo.assert_allclose(twtest.wx_chrom[-1], twref.wx_chrom[-1], rtol=1e-4, atol=0)
+xo.assert_allclose(twtest.wy_chrom[-1], twref.wy_chrom[-1], rtol=1e-4, atol=0)
+xo.assert_allclose(twtest.ax_chrom[-1], twref.ax_chrom[-1], rtol=1e-4, atol=0)
+xo.assert_allclose(twtest.ay_chrom[-1], twref.ay_chrom[-1], rtol=1e-4, atol=0)
+xo.assert_allclose(twtest.dqx, twref.dqx, rtol=1e-4, atol=0)
+xo.assert_allclose(twtest.dqy, twref.dqy, rtol=1e-4, atol=0)

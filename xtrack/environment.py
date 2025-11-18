@@ -104,6 +104,12 @@ class Environment:
         self._elements = EnvElements(self)
         self._particles_container = EnvParticles(self)
         self._enable_name_clash_check = True
+        self._last_context = None
+        self._drift_cache = {}
+
+        for nn, ee in self._element_dict.items():
+            if nn.startswith('||drift_') and isinstance(ee, xt.Drift):
+                self._drift_cache[ee.length] = nn
 
         if lines is not None:
 
@@ -119,7 +125,7 @@ class Environment:
                 # `import_line`
                 for nn in elems_and_parents:
                     if (not (isinstance(ll._element_dict[nn], (xt.Marker))) and
-                        not bool(re.match(r'^drift_\d+$', nn))):
+                        not bool(re.match(r'^\|\|drift_\d+$', nn))):
                         counts[nn] += 1
             common_elements = [nn for nn, cc in counts.items() if cc>1]
 
@@ -557,8 +563,11 @@ class Environment:
 
         self._element_dict[new_name] = source._element_dict[name].copy()
 
-        pars_with_expr = list(
-            source._xdeps_manager.tartasks[source._xdeps_eref[name]].keys())
+        if self.ref_manager is not None:
+            pars_with_expr = list(
+                source._xdeps_manager.tartasks[source._xdeps_eref[name]].keys())
+        else:
+            pars_with_expr = []
 
         formatter = xd.refs.CompactFormatter(scope=None)
 
@@ -586,7 +595,7 @@ class Environment:
         new_name = name
         if name in rename_elements:
             new_name = rename_elements[name]
-        elif (bool(re.match(r'^drift_\d+$', name))
+        elif (bool(re.match(r'^\|\|drift_\d+$', name))
             and line.ref[name].length._expr is None):
             new_name = self._get_a_drift_name()
         elif (name in self.elements and
@@ -682,10 +691,18 @@ class Environment:
 
     def _get_a_drift_name(self):
         self._drift_counter += 1
-        while nn := f'drift_{self._drift_counter}':
+        while nn := f'||drift_{self._drift_counter}':
             if nn not in self.elements:
                 return nn
             self._drift_counter += 1
+
+    def _get_drift(self, length):
+        if length in self._drift_cache:
+            return self._drift_cache[length]
+        nn = self._get_a_drift_name()
+        self.elements[nn] = xt.Drift(length=length)
+        self._drift_cache[length] = nn
+        return nn
 
     def __setitem__(self, key, value):
 
@@ -1917,7 +1934,7 @@ class EnvParticleRef:
 
     def copy(self, **kwargs):
         return self._resolved.copy(**kwargs)
-   
+
 class EnvVars:
 
     def __init__(self, env):
@@ -2072,6 +2089,33 @@ class EnvVars:
 
     def get_expr(self, var):
         return self[var]._expr
+
+    def rename(self, old, new, verbose=False):
+
+        env = self.env
+        mgr = env.ref_manager
+        env.vars[new] = env.vv[old]
+        r_old = env.ref[old]
+        r_new = env.ref[new]
+        t_old = mgr.tasks.get(r_old)
+        if t_old is not None:
+            if verbose:
+                print(f"replacing target {t_old} with {r_new}={t_old.expr}")
+            mgr.set_value(r_new, t_old.expr)
+        for rt in list(env.ref_manager.rdeps[r_old]):
+            if rt in mgr.tasks:
+                tt = mgr.tasks[rt]
+                old_expr = str(tt.expr)
+                new_expr = old_expr.replace(str(r_old), str(r_new))
+                if verbose:
+                    print(f"replancing {old_expr} with {new_expr}")
+                mgr.set_value(rt, eval(new_expr, mgr.containers))
+
+        if verbose:
+            env.info(old, limit=None)
+            env.info(new, limit=None)
+
+        env.vars.remove(old)
 
     def __contains__(self, key):
         if self.env._xdeps_vref is None:

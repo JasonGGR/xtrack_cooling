@@ -91,6 +91,8 @@ class MadxLoader:
             self,
             env: xt.Environment = None,
             default_to_zero: bool = False,
+            s_tol: float = 1e-9,
+            _rbend_correct_k0: bool = False,
     ):
         self._madx_elem_hierarchy: Dict[str, List[str]] = {}
         self._both_direction_elements: Set[str] = set()
@@ -100,6 +102,8 @@ class MadxLoader:
         self.env = env or xt.Environment()
         self.env.default_to_zero = default_to_zero
         self.builders = {}
+        self.s_tol = s_tol
+        self._rbend_correct_k0 = _rbend_correct_k0
 
         self._init_environment()
 
@@ -189,6 +193,19 @@ class MadxLoader:
                 self.env.ref[ename].edge_entry_angle_fdown = angle_fdown
                 self.env.ref[ename].edge_exit_angle_fdown = angle_fdown
 
+        if self._rbend_correct_k0:
+            # needed for sequences (e.g. LHC) defined with rbarc=False in MAD-X
+            sinc = self.env.functions['sinc']
+            tt_rbend = self.env.elements.get_table().rows.match('RBend', 'element_type')
+            for nn in tt_rbend.name:
+                ee_ref = self.env.ref[nn]
+                ee = self.env.get(nn)
+                if ee.k0_from_h:
+                    continue
+                k0 = ee_ref.k0._expr or float(ee_ref.k0._value)
+                angle = ee_ref.angle._expr or float(ee_ref.angle._value)
+                self.env[nn].k0 = k0 * sinc(angle / 2)
+
     def _parse_elements(self, elements: Dict[str, ElementType]):
         for name, el_params in elements.items():
             parent = el_params.pop('parent')
@@ -216,7 +233,7 @@ class MadxLoader:
                 length = params.get('l', None)
                 builder = self.env.new_line(name=name, refer=refer,
                                                length=length,
-                                               s_tol=1e-6,
+                                               s_tol=self.s_tol,
                                                compose=True)
                 self._parse_components(builder, params.pop('elements'))
             elif line_type == 'line':
@@ -447,6 +464,12 @@ class MadxLoader:
             elif knl and len(knl) > 0:
                 params['hxl'] = knl[0]
 
+        elif parent_name == 'dipedge':
+            if edge_angle := params.pop('edge_entry_angle', None):
+                params['e1'] = edge_angle
+            if h := params.pop('h', None):
+                params['k'] = h
+
         elif parent_name == 'vkicker':
             if (kick := params.pop('kick', None)):
                 params['ksl'] = [kick]
@@ -634,7 +657,8 @@ class MadxLoader:
         return self._mad_base_type(element_name) in _APERTURE_TYPES
 
 
-def load_madx_lattice(file=None, string=None, reverse_lines=None):
+def load_madx_lattice(file=None, string=None, reverse_lines=None, s_tol=1e-6,
+                      _rbend_correct_k0=False) -> xt.Environment:
 
     if file is not None and string is not None:
         raise ValueError('Only one of `file` or `string` can be provided!')
@@ -642,10 +666,13 @@ def load_madx_lattice(file=None, string=None, reverse_lines=None):
     if file is None and string is None:
         raise ValueError('Either `file` or `string` must be provided!')
 
-    loader = MadxLoader()
+    loader = MadxLoader(s_tol=s_tol, _rbend_correct_k0=_rbend_correct_k0)
 
     if file is not None:
-        loader.load_file(file)
+        if not isinstance(file, (tuple, list)):
+            file = [file]
+        for ff in file:
+            loader.load_file(ff)
     elif string is not None:
         loader.load_string(string)
     else:

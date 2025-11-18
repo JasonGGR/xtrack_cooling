@@ -1090,6 +1090,9 @@ class Line:
             and self.composer is not None):
             self.rebuild()
 
+        if _context is None and _buffer is None:
+            _context = self.env._last_context
+
         self.tracker = xt.Tracker(
                                 line=self,
                                 _context=_context,
@@ -1102,6 +1105,8 @@ class Line:
 
         if hasattr(self, 'env') and self.env is not None:
             self.env._ensure_tracker_consistency(buffer=self._buffer)
+
+        self.env._last_context = self._context
 
         return self.tracker
 
@@ -3846,7 +3851,7 @@ class Line:
                                       ' `compose` mode. Please call line.end_compose().')
 
         self._frozen_check()
-        self.replace_all_repeated_elements()
+        self.replace_all_repeated_elements(replace_generated_drifts=True)
 
         if keep is None:
             keep = []
@@ -4356,8 +4361,11 @@ class Line:
 
         new_element_names = []
         for nn in self.element_names:
-            new_nn = nn + '.' + suffix
-            self.env.elements[new_nn] = xt.Replica(nn)
+            if nn.startswith('||drift_'):
+                new_nn = nn
+            else:
+                new_nn = nn + '.' + suffix
+                self.env.elements[new_nn] = xt.Replica(nn)
             new_element_names.append(new_nn)
 
         out = self.env.new_line(components=new_element_names)
@@ -4386,7 +4394,8 @@ class Line:
             if isinstance(self._element_dict[nn], xt.Replica):
                 self.replace_replica(nn)
 
-    def replace_all_repeated_elements(self, separator='.', mode='clone'):
+    def replace_all_repeated_elements(self, separator='.', mode='clone',
+                                      replace_generated_drifts=False):
         self._method_incompatible_with_compose()
         env = self.env
 
@@ -4397,10 +4406,13 @@ class Line:
             aux_dict[nn].append(ii)
 
         for nn in unique_names:
+            if not replace_generated_drifts and nn.startswith('||drift_'):
+                continue
             if len(aux_dict[nn]) > 1:
                 i_rep = 0
                 for ii in aux_dict[nn]:
-                    while (new_name := nn + separator + str(i_rep)) in self._element_dict:
+                    while ((new_name := nn.replace('||drift_', 'drift_') + separator + str(i_rep))
+                           in self._element_dict):
                         i_rep += 1
                     env.new(new_name, nn, mode=mode)
                     self.element_names[ii] = new_name
