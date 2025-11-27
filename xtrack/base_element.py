@@ -43,7 +43,7 @@ end_part_part_block = """
     }
 """
 
-def _handle_per_particle_blocks(sources, local_particle_src):
+def _handle_per_particle_blocks(sources):
 
     if isinstance(sources, str):
         sources = (sources, )
@@ -59,8 +59,6 @@ def _handle_per_particle_blocks(sources, local_particle_src):
         else:
             strss = ss
 
-        strss = strss.replace('/*placeholder_for_local_particle_src*/',
-                                local_particle_src)
         if '//start_per_particle_block' in strss:
 
             lines = strss.splitlines()
@@ -73,7 +71,7 @@ def _handle_per_particle_blocks(sources, local_particle_src):
             # TODO: this is very dirty, just for check!!!!!
             out.append('\n'.join(lines))
         else:
-            out.append(ss)
+            out.append(strss)
 
 
     if wasstring:
@@ -215,6 +213,13 @@ def _generate_per_particle_kernel_from_local_particle_function(
         }
 ''')
     return source
+
+
+def _tranformations_active(beam_element):
+    """This internal function is provided for backward compatibility but
+    should not be used and will beb removed soon. Use the following instead:"""
+    return beam_element.transformations_active
+
 
 
 class MetaBeamElement(xo.MetaHybridClass):
@@ -434,9 +439,7 @@ class BeamElement(xo.HybridClass, metaclass=MetaBeamElement):
     def compile_kernels(self, extra_classes=(), *args, **kwargs):
         if 'apply_to_source' not in kwargs.keys():
             kwargs['apply_to_source'] = []
-        kwargs['apply_to_source'].append(
-            partial(_handle_per_particle_blocks,
-                    local_particle_src=Particles.gen_local_particle_api()))
+        kwargs['apply_to_source'].append(_handle_per_particle_blocks)
         context = self._context
         cls = self.__class__
 
