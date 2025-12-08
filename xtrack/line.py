@@ -57,7 +57,7 @@ from .general import _print
 
 log = logging.getLogger(__name__)
 
-_ALLOWED_ELEMENT_TYPES_IN_NEW   = [
+_ALLOWED_ELEMENT_TYPES_IN_NEW = [
     xt.Drift, xt.DriftExact,
     xt.Magnet, xt.Replica, xt.Marker,
     xt.Bend, xt.RBend, xt.Quadrupole, xt.Sextupole, xt.Octupole, xt.Multipole,
@@ -65,7 +65,7 @@ _ALLOWED_ELEMENT_TYPES_IN_NEW   = [
     xt.Cavity, xt.RFMultipole, xt.CrabCavity, xt.ReferenceEnergyIncrease,
     xt.XYShift, xt.XRotation, xt.YRotation, xt.SRotation, xt.ZetaShift,
     xt.LimitRacetrack, xt.LimitRectEllipse, xt.LimitRect, xt.LimitEllipse,
-    xt.LimitPolygon, xt.DipoleEdge]
+    xt.LimitPolygon, xt.DipoleEdge, xt.LongitudinalLimitRect, xt.FirstOrderTaylorMap]
 
 _ALLOWED_ELEMENT_TYPES_DICT = {
     cc.__name__: cc for cc in _ALLOWED_ELEMENT_TYPES_IN_NEW}
@@ -1082,7 +1082,8 @@ class Line:
         if self.mode == 'compose':
             self._full_elements_from_composer()
 
-        if self.tracker is not None:
+        if self.tracker is not None and (_context is None or _context == self._context) \
+           and (_buffer is None or _buffer == self._buffer):
             _print('The line already has an associated tracker')
             return self.tracker
 
@@ -3763,7 +3764,8 @@ class Line:
         newline = Line(elements=[], element_names=[])
 
         for ee, nn in zip(self._elements, self.element_names):
-            if isinstance(ee, Multipole) and nn not in keep:
+            if (isinstance(ee, Multipole) and nn not in keep and
+                not(ee.isthick and ee.length != 0)):
                 ctx2np = ee._context.nparray_from_context_array
                 aux = ([ee.hxl]
                         + list(ctx2np(ee.knl)) + list(ctx2np(ee.ksl)))
@@ -4292,6 +4294,8 @@ class Line:
         return xt.Target(action=action, tar=tar, value=value, **kwargs)
 
     def _freeze(self):
+        if self._isfrozen():
+            return
         self.element_names = tuple(self.element_names)
 
     def unfreeze(self):
@@ -4301,6 +4305,9 @@ class Line:
             'versions. Please use `Line.discard_tracker()` instead.'
         )
         self.discard_tracker()
+
+    def _isfrozen(self):
+        return isinstance(self.element_names, tuple)
 
     def _frozen_check(self):
         if isinstance(self.element_names, tuple):
@@ -4533,8 +4540,7 @@ class Line:
     @property
     def _context(self):
         if not self._has_valid_tracker():
-            raise RuntimeError(
-                '`Line._context` can only be called after `Line.build_tracker`')
+            return None
         return self.tracker._context
 
     @property
@@ -5197,7 +5203,7 @@ def _deserialize_element(el, class_dict, _buffer):
         return eltype.from_dict(eldct)
 
 def _is_simple_quadrupole(el):
-    if not isinstance(el, Multipole):
+    if not isinstance(el, Multipole) or el.isthick:
         return False
     return (el.radiation_flag == 0
             and (el.order == 1 or len(el.knl) == 2 or not any(el.knl[2:]))
@@ -5208,7 +5214,7 @@ def _is_simple_quadrupole(el):
             and np.abs(el.rot_s_rad) < 1e-12)
 
 def _is_simple_dipole(el):
-    if not isinstance(el, Multipole):
+    if not isinstance(el, Multipole) or el.isthick:
         return False
     return (el.radiation_flag == 0
             and (el.order == 0 or len(el.knl) == 1 or not any(el.knl[1:]))

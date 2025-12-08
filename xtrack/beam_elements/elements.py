@@ -104,6 +104,8 @@ class _HasIntegrator:
         except KeyError:
             raise ValueError(f'Invalid integrator: {value}')
 
+    _default_integrator = _INDEX_TO_INTEGRATOR[0]
+
     @staticmethod
     def get_available_integrators():
         """Get list of available integrators for this element.
@@ -133,6 +135,8 @@ class _HasModelDrift:
             self._model = _MODEL_TO_INDEX_DRIFT[value]
         except KeyError:
             raise ValueError(f'Invalid model: {value}')
+
+    _default_model = _INDEX_TO_MODEL_DRIFT[0]
 
     @staticmethod
     def get_available_models():
@@ -164,6 +168,8 @@ class _HasModelStraight:
         except KeyError:
             raise ValueError(f'Invalid model: {value}')
 
+    _default_model = _INDEX_TO_MODEL_STRAIGHT[0]
+
     @staticmethod
     def get_available_models():
         """Get list of available models for this element.
@@ -193,6 +199,8 @@ class _HasModelCurved:
             self._model = _MODEL_TO_INDEX_CURVED[value]
         except KeyError:
             raise ValueError(f'Invalid model: {value}')
+
+    _default_model = _INDEX_TO_MODEL_CURVED[0]
 
     @staticmethod
     def get_available_models():
@@ -225,6 +233,8 @@ class _HasModelRF:
             self._model = _MODEL_TO_INDEX_RF[value]
         except KeyError:
             raise ValueError(f'Invalid RF model: {value}')
+
+    _default_model = _INDEX_TO_MODEL_RF[0]
 
 
 class _HasKnlKsl:
@@ -1309,7 +1319,7 @@ class _BendCommon(_HasKnlKsl, _HasIntegrator, _HasModelCurved):
     has_backtrack = True
     allow_loss_refinement = True
 
-    _skip_in_to_dict = ['_order', 'inv_factorial_order']  # defined by knl, etc.
+    _skip_in_to_dict = ['inv_factorial_order', 'h', 'k0_from_h']
 
     _common_xofields = {
         'k0': xo.Float64,
@@ -1339,7 +1349,7 @@ class _BendCommon(_HasKnlKsl, _HasIntegrator, _HasModelCurved):
         'inv_factorial_order': xo.Float64,
         'knl': xo.Float64[:],
         'ksl': xo.Float64[:],
-        'k0_from_h': xo.UInt64,
+        'k0_from_h': xo.Field(xo.UInt64, default=1),
     }
 
     _common_rename = {
@@ -1355,15 +1365,59 @@ class _BendCommon(_HasKnlKsl, _HasIntegrator, _HasModelCurved):
         'h': '_h',
     }
 
+
+    @property
+    def angle(self):
+        return self._angle
+
+    @angle.setter
+    def angle(self, value):
+        self._angle = value
+        if self.length != 0:
+            self._h = self.angle / self.length
+            if self.k0_from_h:
+                self._k0 = self.h
+
+    @property
+    def length(self):
+        return self._length
+
+    @length.setter
+    def length(self, value):
+        self._length = value
+        if self.length != 0:
+            self._h = self.angle / self.length
+            if self.k0_from_h:
+                self._k0 = self.h
+        else:
+            self._h = 0.0
+
+    @property
+    def h(self):
+        return self._h
+
+    @h.setter
+    def h(self, value):
+        raise RuntimeError("Setting `h` directly is not allowed. "
+                           "Set `length` and `angle` instead.")
+
     @property
     def k0(self):
+        if self.k0_from_h:
+            return 'from_h'
         return self._k0
 
     @k0.setter
     def k0(self, value):
-        if self.k0_from_h and not np.isclose(value, self.h, atol=1e-13):
+        if isinstance(value, str):
+            if value != 'from_h':
+                raise ValueError("k0 can only be set to 'from_h' as a string")
+            self.k0_from_h = True
+        else:
             self.k0_from_h = False
-        self._k0 = value
+            self._k0 = value
+
+    _default_k0 = 'from_h'
 
     @property
     def k0_from_h(self):
@@ -1373,6 +1427,8 @@ class _BendCommon(_HasKnlKsl, _HasIntegrator, _HasModelCurved):
     def k0_from_h(self, value):
         if value:
             self._k0 = self.h
+        elif self.k0_from_h: # was true before
+            self._k0 = 0.
         self._k0_from_h = value
 
     @property
@@ -1386,6 +1442,8 @@ class _BendCommon(_HasKnlKsl, _HasIntegrator, _HasModelCurved):
         except KeyError:
             raise ValueError(f'Invalid model: {value}')
 
+    _default_edge_entry_model = _INDEX_TO_EDGE_MODEL[0]
+
     @property
     def edge_exit_model(self):
         return _INDEX_TO_EDGE_MODEL[self._edge_exit_model]
@@ -1397,6 +1455,8 @@ class _BendCommon(_HasKnlKsl, _HasIntegrator, _HasModelCurved):
         except KeyError:
             raise ValueError(f'Invalid model: {value}')
 
+    _default_edge_exit_model = _INDEX_TO_EDGE_MODEL[0]
+
     @property
     def _repr_fields(self):
         return ['length', 'k0', 'k1', 'h', 'k0_from_h', 'model', 'knl', 'ksl',
@@ -1406,32 +1466,30 @@ class _BendCommon(_HasKnlKsl, _HasIntegrator, _HasModelCurved):
                 'edge_entry_fint', 'edge_exit_fint', 'edge_entry_hgap',
                 'edge_exit_hgap', 'shift_x', 'shift_y', 'rot_s_rad']
 
-    def to_dict(self, copy_to_cpu=True):
-        out = super().to_dict(copy_to_cpu=copy_to_cpu)
-
-        for kk in ('model', 'k0', 'h', 'length', 'k0_from_h', 'angle'):
-            if f'_{kk}' in out:
-                out.pop(f'_{kk}')
-            out[kk] = getattr(self, kk)
-
-        # See the comment in Multiple.to_dict about knl/ksl/order dumping
-        if 'knl' in out and np.allclose(out['knl'], 0, atol=1e-16):
-            out.pop('knl', None)
-
-        if 'ksl' in out and np.allclose(out['ksl'], 0, atol=1e-16):
-            out.pop('ksl', None)
-
-        if self.order != 0 and 'knl' not in out and 'ksl' not in out:
-            out['order'] = self.order
-
-        return out
-
     @property
     def sagitta(self):
         if abs(self.angle) < 1e-10:  # avoid numerical issues
             return 0.0
         else:
             return 1. / self.h * (1 - np.cos(0.5 * self.angle))
+
+    @classmethod
+    def from_dict(cls, dct, **kwargs):
+
+        dct = dct.copy()
+
+        # Backward compatibility
+        if 'h' in dct:
+            if 'angle' not in dct:
+                assert 'length' in dct
+                dct['angle'] = dct['h'] * dct['length']
+            dct.pop('h')
+
+        if 'k0_from_h' in dct and dct['k0_from_h']:
+            dct['k0'] = 'from_h'
+            dct.pop('k0_from_h')
+
+        return super().from_dict(dct, **kwargs)
 
 
 class Bend(_BendCommon, BeamElement):
@@ -1559,94 +1617,20 @@ class Bend(_BendCommon, BeamElement):
             self.xoinitialize(**kwargs)
             return
 
-        edge_entry_model = kwargs.pop('edge_entry_model', None)
-        edge_exit_model = kwargs.pop('edge_exit_model', None)
+        if 'h' in kwargs:
+            raise ValueError("Setting `h` directly is not allowed. "
+                                "Set `length` and `angle` instead.")
+
+        to_be_set_with_properties = []
+        for nn in ['length', 'angle', 'k0_from_h', 'edge_entry_model',
+                   'edge_exit_model', 'k0']:
+            if nn in kwargs:
+                to_be_set_with_properties.append((nn, kwargs.pop(nn)))
 
         _HasKnlKsl.__init__(self, **kwargs)
 
-        # Calculate length and h in the event length_straight and/or angle given
-        self.set_bend_params(
-            kwargs.get('length'),
-            kwargs.get('h'),
-            kwargs.get('angle'),
-        )
-
-        if self.k0_from_h:
-            self.k0 = self.h
-
-        if edge_entry_model is not None:
-            self.edge_entry_model = edge_entry_model
-
-        if edge_exit_model is not None:
-            self.edge_exit_model = edge_exit_model
-
-    @property
-    def length(self):
-        return self._length
-
-    @length.setter
-    def length(self, value):
-        self.set_bend_params(length=value, angle=self.angle)
-
-    @property
-    def h(self):
-        return self._h
-
-    @h.setter
-    def h(self, value):
-        self.set_bend_params(length=self.length, h=value)
-
-    @property
-    def angle(self):
-        return self._angle
-
-    @angle.setter
-    def angle(self, value):
-        self.set_bend_params(length=self.length, angle=value)
-
-    def set_bend_params(self, length=None, h=None, angle=None):
-        length, h, angle = self.compute_bend_params(
-            length, h, angle,
-        )
-
-        # None becomes NaN in numpy buffers
-        if length is not None:
-            self._length = length
-        if h is not None:
-            self._h = h
-        if angle is not None:
-            self._angle = angle
-
-        if self.k0_from_h:
-            self._k0 = self.h
-
-    @staticmethod
-    def compute_bend_params(length=None, h=None, angle=None):
-        if not length:
-            # If no length, then we cannot meaningfully calculate anything
-            return length, h, angle
-
-        if angle is not None:
-            computed_h = angle / length
-
-            if h is not None and not np.isclose(h, computed_h, rtol=0, atol=1e-13):
-                raise ValueError('Given `h` and `angle` are inconsistent!')
-
-            h = h or computed_h
-            return length, h, angle
-
-        if h is not None:
-            computed_angle = h * length
-
-            if angle is not None and not np.isclose(angle, computed_angle, rtol=0, atol=1e-13):
-                raise ValueError('Given `h` and `angle` are inconsistent!')
-
-            angle = angle or computed_angle
-            return length, h, angle
-
-        # Both `h` and `angle` are None
-        return length, h, angle
-
+        for nn, val in to_be_set_with_properties:
+            setattr(self, nn, val)
 
     @property
     def _thin_slice_class(self):
@@ -1780,33 +1764,53 @@ class RBend(_BendCommon, BeamElement):
             self.xoinitialize(**kwargs)
             return
 
-        edge_entry_model = kwargs.pop('edge_entry_model', None)
-        edge_exit_model = kwargs.pop('edge_exit_model', None)
-        rbend_model = kwargs.pop('rbend_model', None)
+        if 'h' in kwargs:
+            raise ValueError("Setting `h` directly is not allowed. "
+                                "Set `length` and `angle` instead.")
 
-        _HasKnlKsl.__init__(self, **kwargs)
+        if 'length' in kwargs:
+            raise ValueError("Setting `length` directly is not allowed for RBend. "
+                             "Set `length_straight` instead.")
 
-        # Calculate length and h in the event length_straight and/or angle given
-        self.set_bend_params(
-            kwargs.get('length'),
-            kwargs.get('length_straight'),
-            kwargs.get('h'),
-            kwargs.get('angle'),
-            rbend_angle_diff=kwargs.get('rbend_angle_diff', 0.0),
-        )
+        to_be_set_with_properties = []
+        for nn in ['length_straight', 'angle', 'k0_from_h', 'edge_entry_model',
+                   'edge_exit_model', 'rbend_angle_diff', 'rbend_model', 'k0']:
+            if nn in kwargs:
+                to_be_set_with_properties.append((nn, kwargs.pop(nn)))
 
-        if self.k0_from_h:
-            self.k0 = self.h
+        _HasKnlKsl.__init__(self, **kwargs) # Handles knl, ksl, order, model, integrator
 
-        # Trigger properties
-        if edge_entry_model is not None:
-            self.edge_entry_model = edge_entry_model
+        for nn, val in to_be_set_with_properties:
+            setattr(self, nn, val)
 
-        if edge_exit_model is not None:
-            self.edge_exit_model = edge_exit_model
+    @classmethod
+    def from_dict(cls, dct, **kwargs):
 
-        if rbend_model is not None:
-            self.rbend_model = rbend_model
+        dct = dct.copy()
+
+        if 'length' in dct:
+            assert 'length_straight' in dct
+            dct.pop('length')
+
+        return super().from_dict(dct, **kwargs)
+
+    @property
+    def length(self):
+        return self._length
+
+    @length.setter
+    def length(self, value):
+        raise RuntimeError("Setting `length` directly is not allowed for RBend. "
+                           "Set `length_straight` instead.")
+
+    @property
+    def angle(self):
+        return self._angle
+
+    @angle.setter
+    def angle(self, value):
+        self._angle = value
+        self._update_rbend_h_length_k0()
 
     @property
     def rbend_angle_diff(self):
@@ -1815,35 +1819,7 @@ class RBend(_BendCommon, BeamElement):
     @rbend_angle_diff.setter
     def rbend_angle_diff(self, value):
         self._rbend_angle_diff = value
-        self.set_bend_params(length_straight=self._length_straight, angle=self._angle,
-                             rbend_angle_diff=value)
-
-    @property
-    def length(self):
-        return self._length
-
-    @length.setter
-    def length(self, value):
-        self.set_bend_params(length=value, angle=self.angle,
-                             rbend_angle_diff=self._rbend_angle_diff)
-
-    @property
-    def h(self):
-        return self._h
-
-    @h.setter
-    def h(self, value):
-        self.set_bend_params(h=value, length_straight=self._length_straight,
-                             rbend_angle_diff=self._rbend_angle_diff)
-
-    @property
-    def angle(self):
-        return self._angle
-
-    @angle.setter
-    def angle(self, value):
-        self.set_bend_params(angle=value, length_straight=self.length_straight,
-                             rbend_angle_diff=self._rbend_angle_diff)
+        self._update_rbend_h_length_k0()
 
     @property
     def length_straight(self):
@@ -1851,8 +1827,31 @@ class RBend(_BendCommon, BeamElement):
 
     @length_straight.setter
     def length_straight(self, value):
-        self.set_bend_params(length_straight=value, angle=self.angle,
-                             rbend_angle_diff=self._rbend_angle_diff)
+        self._length_straight = value
+        self._update_rbend_h_length_k0()
+
+    def _update_rbend_h_length_k0(self):
+        _angle = self._angle
+        _length_straight = self._length_straight
+        _rbend_angle_diff = self._rbend_angle_diff
+
+        theta_in = 0.5 * _angle - _rbend_angle_diff / 2
+        theta_out = 0.5 * _angle + _rbend_angle_diff / 2
+        if abs(_angle) < 1e-10:
+            length = _length_straight
+            h = 0
+        elif abs(_length_straight) < 1e-10:
+            length = 0.0
+            h = 0
+        else:
+            h = (np.sin(theta_in) + np.sin(theta_out)) / _length_straight
+            length = _angle / h
+
+        self._h = h
+        self._angle = _angle
+        self._length = length
+        if self.k0_from_h:
+            self._k0 = self._h
 
     @property
     def rbend_model(self):
@@ -1872,136 +1871,6 @@ class RBend(_BendCommon, BeamElement):
     @rbend_compensate_sagitta.setter
     def rbend_compensate_sagitta(self, value):
         self._rbend_compensate_sagitta = int(bool(value))
-
-    def set_bend_params(self, length=None, length_straight=None, h=None, angle=None,
-                        rbend_angle_diff=None):
-        (
-            length, length_straight, h, angle
-        ) = self.compute_bend_params(length, length_straight, h, angle,
-                                     rbend_angle_diff=rbend_angle_diff)
-
-        if length is not None:
-            self._length = length
-        if length_straight is not None:
-            self._length_straight = length_straight
-        if h is not None:
-            self._h = h
-        if angle is not None:
-            self._angle = angle
-        if self.k0_from_h:
-            self._k0 = self.h
-
-    @staticmethod
-    def compute_bend_params(length=None, length_straight=None, h=None, angle=None,
-                            rbend_angle_diff=None):
-        """Compute the bend parameters (length, h) from the given arguments.
-
-        The arguments are checked for consistency and the missing ones are
-        calculated from the others.
-
-        One of each pair must be given: `length` or `length_straight`, and `h` or
-        `angle`. If both are missing for each pair, zero will be assumed for the
-        length and for `h`.
-        """
-        assert rbend_angle_diff is not None
-        kwargs = locals()
-        given = {
-            arg_name: arg_value
-            for arg_name in ['length', 'length_straight', 'h', 'angle']
-            if (arg_value := kwargs[arg_name]) is not None
-        }
-
-        # Defaults
-        if 'length' not in given and 'length_straight' not in given:
-            length = 0
-            length_straight = 0
-
-        if 'h' not in given and 'angle' not in given:
-            h = 0
-            angle = 0
-
-        # Compute the remaining quantities for each accepted pair
-        if length == 0 or length_straight == 0:
-            # Special case to avoid division by zero, lengths are zero, h arbitrary
-            # Technically the angle should be zero too, but since oftentimes
-            # people initialise the element first with the angle, only later
-            # setting the length, we allow it to propagate.
-            length = length_straight = 0
-            h = given.get('h', 0)
-        elif angle == 0:
-            # Special case for zero angle: lengths are the same, h arbitrary
-            h = given.get('h', 0)
-            if length is not None and length_straight is not None:
-                assert length == length_straight
-            else:
-                length = length or length_straight
-                length_straight = length
-        elif 'length' in given and 'h' in given: # case 3
-            angle = length * h
-            theta_in = 0.5 * angle - rbend_angle_diff / 2
-            theta_out = 0.5 * angle + rbend_angle_diff / 2
-            if abs(angle) < 1e-10:
-                length_straight = length
-            else:
-                length_straight = (1/h) * (np.sin(theta_in) + np.sin(theta_out))
-        elif 'length' in given and 'angle' in given: # case 2
-            h = angle / length
-            theta_in = 0.5 * angle - rbend_angle_diff / 2
-            theta_out = 0.5 * angle + rbend_angle_diff / 2
-            if abs(angle) < 1e-10:
-                length_straight = length
-            else:
-                length_straight = (1/h) * (np.sin(theta_in) + np.sin(theta_out))
-        elif 'length_straight' in given and 'h' in given: # case 4
-            angle = 2 * np.arcsin(length_straight * h / 2 / np.cos(rbend_angle_diff / 2))
-            if abs(angle) < 1e-10:
-                length = length_straight
-            else:
-                length = angle / h
-        elif 'length_straight' in given and 'angle' in given: # case 1
-            theta_in = 0.5 * angle - rbend_angle_diff / 2
-            theta_out = 0.5 * angle + rbend_angle_diff / 2
-            if abs(angle) < 1e-10:
-                length = length_straight
-                h = 0
-            else:
-                h = (np.sin(theta_in) + np.sin(theta_out)) / length_straight
-                length = angle / h
-        elif 'h' in given and 'angle' in given:
-            theta_in = 0.5 * angle - rbend_angle_diff / 2
-            theta_out = 0.5 * angle + rbend_angle_diff / 2
-            if abs(angle) < 1e-10:
-                length = length_straight = 0
-            else:
-                length = angle / h
-                length_straight = (1/h) * (np.sin(theta_in) + np.sin(theta_out))
-        else:
-            raise RuntimeError("Internal error in RBend parameter computation.")
-
-        # Verify consistency
-        errors = []
-        for param_name in ['length', 'length_straight', 'h', 'angle']:
-            if param_name in given:
-                given_value = given[param_name]
-                computed = locals()[param_name]
-                if np.isnan(given_value) and np.isnan(computed):
-                    continue
-                if not np.isclose(given_value, computed, atol=1e-13, rtol=1e-13):
-                    errors.append(f"{param_name} = {given_value} (given) != "
-                                  f"{computed} (computed)")
-
-        if errors:
-            raise ValueError(
-                "Given bend parameters are inconsistent: " + ", ".join(errors))
-
-        # By this point the given values are proved to be consistent, prefer
-        # the values given by the user, not to accumulate numerical noise.
-        return (
-            given.get('length', length),
-            given.get('length_straight', length_straight),
-            given.get('h', h),
-            given.get('angle', angle),
-        )
 
     @property
     def hxl(self): return self.h * self.length
@@ -2458,7 +2327,7 @@ class UniformSolenoid(_HasKnlKsl, _HasIntegrator, BeamElement):
     def _exit_slice_class(self):
         return xt.ThinSliceUniformSolenoidExit
 
-class VariableSolenoid(_HasKnlKsl, BeamElement):
+class VariableSolenoid(_HasKnlKsl, _HasIntegrator, BeamElement):
 
     """
     Solenoid element.
@@ -2658,7 +2527,7 @@ class Solenoid(_HasKnlKsl, BeamElement):
         self.xoinitialize(**kwargs)
 
 
-class Magnet(_HasKnlKsl, _HasIntegrator, _HasModelCurved, BeamElement):
+class Magnet(_BendCommon, BeamElement):
     """General transverse field magnet with curvature and fringe fields.
 
     A beam element representing a magnet with transverse fields, curvature, and
@@ -2796,7 +2665,7 @@ class Magnet(_HasKnlKsl, _HasIntegrator, _HasModelCurved, BeamElement):
         'k3s': xo.Float64,
         'angle': xo.Float64,
         'h': xo.Float64,
-        'k0_from_h': xo.UInt64,
+        'k0_from_h': xo.Field(xo.UInt64, default=1),
         'edge_entry_active': xo.Field(xo.Int64, default=1),
         'edge_exit_active': xo.Field(xo.Int64, default=1),
         'edge_entry_model': xo.Int64,
@@ -2836,140 +2705,26 @@ class Magnet(_HasKnlKsl, _HasIntegrator, _HasModelCurved, BeamElement):
 
     _internal_record_class = SynchrotronRadiationRecord
 
-    def __init__(self, order=None, knl: List[float]=None, ksl: List[float]=None, **kwargs):
-        if '_xobject' in kwargs.keys() and kwargs['_xobject'] is not None:
+    def __init__(self, **kwargs):
+
+        if '_xobject' in kwargs and kwargs['_xobject'] is not None:
             self.xoinitialize(**kwargs)
             return
 
-        order = order or DEFAULT_MULTIPOLE_ORDER
-        multipolar_kwargs = self._prepare_multipolar_params(order, knl=knl, ksl=ksl)
-        kwargs.update(multipolar_kwargs)
+        if 'h' in kwargs:
+            raise ValueError("Setting `h` directly is not allowed. "
+                                "Set `length` and `angle` instead.")
 
-        model = kwargs.pop('model', None)
-        integrator = kwargs.pop('integrator', None)
-        edge_entry_model = kwargs.pop('edge_entry_model', None)
-        edge_exit_model = kwargs.pop('edge_exit_model', None)
+        to_be_set_with_properties = []
+        for nn in ['length', 'angle', 'k0_from_h', 'edge_entry_model',
+                   'edge_exit_model', 'k0']:
+            if nn in kwargs:
+                to_be_set_with_properties.append((nn, kwargs.pop(nn)))
 
-        self.xoinitialize(**kwargs)
+        _HasKnlKsl.__init__(self, **kwargs)
 
-        # Calculate length and h in the event length_straight and/or angle given
-        self.set_bend_params(
-            kwargs.get('length'),
-            kwargs.get('h'),
-            kwargs.get('angle'),
-        )
-
-        if self.k0_from_h:
-            self.k0 = self.h
-
-        # Trigger properties
-        if model is not None:
-            self.model = model
-
-        if integrator is not None:
-            self.integrator = integrator
-
-        if edge_entry_model is not None:
-            self.edge_entry_model = edge_entry_model
-
-        if edge_exit_model is not None:
-            self.edge_exit_model = edge_exit_model
-
-    def set_bend_params(self, length=None, h=None, angle=None):
-        length, h, angle = self.compute_bend_params(
-            length, h, angle,
-        )
-
-        # None becomes NaN in numpy buffers
-        if length is not None:
-            self._length = length
-        if h is not None:
-            self._h = h
-        if angle is not None:
-            self._angle = angle
-
-        if self.k0_from_h:
-            self._k0 = self.h
-
-    @staticmethod
-    def compute_bend_params(length=None, h=None, angle=None):
-        if not length:
-            # If no length, then we cannot meaningfully calculate anything
-            return length, h, angle
-
-        if angle is not None:
-            computed_h = angle / length
-
-            if h is not None and not np.isclose(h, computed_h, rtol=0, atol=1e-13):
-                raise ValueError('Given `h` and `angle` are inconsistent!')
-
-            h = h or computed_h
-            return length, h, angle
-
-        if h is not None:
-            computed_angle = h * length
-
-            if angle is not None and not np.isclose(angle, computed_angle, rtol=0, atol=1e-13):
-                raise ValueError('Given `h` and `angle` are inconsistent!')
-
-            angle = angle or computed_angle
-            return length, h, angle
-
-        # Both `h` and `angle` are None
-        return length, h, angle
-
-    @property
-    def k0(self):
-        return self._k0
-
-    @k0.setter
-    def k0(self, value):
-        if self.k0_from_h and not np.isclose(value, self.h, atol=1e-13):
-            self.k0_from_h = False
-        self._k0 = value
-
-    @property
-    def k0_from_h(self):
-        return bool(self._k0_from_h)
-
-    @k0_from_h.setter
-    def k0_from_h(self, value):
-        if value:
-            self._k0 = self.h
-        self._k0_from_h = value
-
-    @property
-    def length(self):
-        return self._length
-
-    @length.setter
-    def length(self, value):
-        self.set_bend_params(length=value, angle=self.angle)
-
-    @property
-    def h(self):
-        return self._h
-
-    @h.setter
-    def h(self, value):
-        self.set_bend_params(length=self.length, h=value)
-
-    @property
-    def angle(self):
-        return self._angle
-
-    @angle.setter
-    def angle(self, value):
-        self.set_bend_params(length=self.length, angle=value)
-
-    @property
-    def order(self):
-        return self._order
-
-    @order.setter
-    def order(self, value):
-        self._order = value
-        self.inv_factorial_order = 1.0 / factorial(value, exact=True)
+        for nn, val in to_be_set_with_properties:
+            setattr(self, nn, val)
 
     @property
     def edge_entry_model(self):
