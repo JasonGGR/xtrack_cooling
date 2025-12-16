@@ -525,6 +525,7 @@ class Cavity(_HasModelRF, _HasIntegrator, BeamElement):
         'voltage': xo.Float64,
         'frequency': xo.Float64,
         'lag': xo.Float64,
+        'harmonic': xo.Float64,
         'lag_taper': xo.Float64,
         'absolute_time': xo.Int64,
         'num_kicks': xo.Int64,
@@ -541,7 +542,12 @@ class Cavity(_HasModelRF, _HasIntegrator, BeamElement):
     _rename = {
         'model': '_model',
         'integrator': '_integrator',
+        'frequency': '_frequency',
+        'harmonic': '_harmonic',
     }
+
+    _default_frequency = 0.0
+    _default_harmonic = 0.0
 
     _noexpr_fields = _NOEXPR_FIELDS
 
@@ -553,6 +559,8 @@ class Cavity(_HasModelRF, _HasIntegrator, BeamElement):
 
         model = kwargs.pop('model', None)
         integrator = kwargs.pop('integrator', None)
+        frequency = kwargs.pop('frequency', None)
+        harmonic = kwargs.pop('harmonic', None)
 
         self.xoinitialize(**kwargs)
 
@@ -562,6 +570,41 @@ class Cavity(_HasModelRF, _HasIntegrator, BeamElement):
 
         if integrator is not None:
             self.integrator = integrator
+
+        if frequency is not None:
+            self.frequency = frequency
+
+        if harmonic is not None:
+            self.harmonic = harmonic
+
+    def track(self, particles, *args, **kwargs):
+
+        if self.harmonic != 0:
+            raise RuntimeError("Cavity cannot be used in standalone tracking "
+                               "when harmonic is not zero. Please use the "
+                               "cavity within a Line or set frequency instead"
+                               " of harmonic.")
+        return super().track(particles, *args, **kwargs)
+
+    @property
+    def frequency(self):
+        return self._frequency
+
+    @frequency.setter
+    def frequency(self, value):
+        if self._harmonic != 0 and value != 0:
+            raise ValueError("Cannot set non-zero frequency when harmonic is not zero.")
+        self._frequency = value
+
+    @property
+    def harmonic(self):
+        return self._harmonic
+
+    @harmonic.setter
+    def harmonic(self, value):
+        if self._frequency != 0 and value != 0:
+            raise ValueError("Cannot set non-zero harmonic when frequency is not zero.")
+        self._harmonic = value
 
     @property
     def _thin_slice_class(self):
