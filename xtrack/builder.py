@@ -397,9 +397,10 @@ def _resolve_s_positions(seq_all_places, env, refer='center',
                     s_start_for_place[ss] = (s_start_for_place[ss_prev]
                                              + tt_lengths['length', ss_prev.name])
                     place_for_name[ss.name] = ss
-                    ss.at = 0
-                    ss.from_ = ss_prev.name
-                    ss.from_anchor = 'end'
+                    if not ss_prev.name.startswith('||drift'):
+                        ss.at = 0
+                        ss.from_ = ss_prev.name
+                        ss.from_anchor = 'end'
                     n_resolved += 1
             else:
                 if isinstance(ss.at, str):
@@ -465,7 +466,8 @@ def _sort_places(tt_unsorted, s_tol=1e-10, allow_non_existent_from=False):
     for ii in range(1, len(tt_s_sorted)):
         if abs(tt_s_sorted.s_center[ii] - tt_s_sorted.s_center[ii-1]) > s_tol:
             group_id[ii] = group_id[ii-1] + 1
-        elif tt_s_sorted.isthick[ii]: # Needed in Line.insert (on the first sorting pass there can be overlapping elements)
+        elif tt_s_sorted.isthick[ii] and (tt_s_sorted.s_end[ii] - tt_s_sorted.s_start[ii]) != 0:
+            # Needed in Line.insert (on the first sorting pass there can be overlapping elements)
             group_id[ii] = group_id[ii-1] + 1
         else:
             group_id[ii] = group_id[ii-1]
