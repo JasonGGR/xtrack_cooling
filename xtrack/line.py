@@ -222,7 +222,6 @@ class Line:
 
         self._line_before_slicing_cache = None
         self._element_names_before_slicing = None
-        self.ref = xt.environment.EnvRef(self)
 
     @classmethod
     def from_dict(cls, dct, _context=None, _buffer=None, classes=(),
@@ -1219,6 +1218,7 @@ class Line:
         num_elements=None, # defaults to full lattice
         num_turns=None,    # defaults to 1
         turn_by_turn_monitor=None,
+        multi_element_monitor_at=None,
         freeze_longitudinal=False,
         time=False,
         with_progress=False,
@@ -1254,6 +1254,10 @@ class Line:
             it is used directly. If the string `ONE_TURN_EBE` is provided, the
             particles coordinates are recorded at each element (one turn).
             The recorded data can be retrieved in `line.record_last_track`.
+        multi_element_monitor_at: list of str, optional
+            If provided, a multi-element monitor is created and coordinates of the
+            trcked particles are recorded at the elements whose names are in the list.
+            The recorded data can be retrieved in `line.record_multi_element_last_track`.
         freeze_longitudinal: bool, optional
             If True, the longitudinal coordinates are frozen during tracking.
         time: bool, optional
@@ -1296,6 +1300,7 @@ class Line:
             freeze_longitudinal=freeze_longitudinal,
             time=time,
             with_progress=with_progress,
+            multi_element_monitor_at=multi_element_monitor_at,
             **kwargs)
 
     def slice_thick_elements(self, slicing_strategies):
@@ -1567,6 +1572,8 @@ class Line:
 
         """
         Compute the 4D Twiss parameters. Equivalent to `twiss` with `method='4d'`.
+        See :ref:`Line.twiss method documentation<twiss_method_label>` for all
+        available options.
         """
         assert 'method' not in kwargs, 'method cannot be provided as argument to twiss4d'
         kwargs['method'] = '4d'
@@ -1576,6 +1583,8 @@ class Line:
 
         """
         Compute the 6D Twiss parameters. Equivalent to `twiss` with `method='6d'`.
+        See :ref:`Line.twiss method documentation<twiss_method_label>` for all
+        available options.
         """
         assert 'method' not in kwargs, 'method cannot be provided as argument to twiss6d'
         kwargs['method'] = '6d'
@@ -1744,29 +1753,95 @@ class Line:
                element0=0, reverse=None):
 
         """
-        Returns a survey of the beamline (based on MAD-X survey command).
+        Compute the geometrical layout, i.e. the coordinates of all beam line
+        elements in the global reference system. (for detailed definitions of
+        the involved quantities please refer to the Xsuite Physics Guide
+        (https://xsuite.readthedocs.io/en/latest/physicsguide.html)
 
         Parameters
         ----------
         X0 : float
-            Initial X coordinate in meters.
+            Initial X coordinate in meters. Default is 0.
         Y0 : float
-            Initial Y coordinate in meters.
+            Initial Y coordinate in meters. Default is 0.
         Z0 : float
-            Initial Z coordinate in meters.
+            Initial Z coordinate in meters. Default is 0.
         theta0 : float
-            Initial theta coordinate in radians.
+            Initial theta coordinate in radians. Default is 0.
         phi0 : float
-            Initial phi coordinate in radians.
+            Initial phi coordinate in radians. Default is 0.
         psi0 : float
-            Initial psi coordinate in radians.
+            Initial psi coordinate in radians. Default is 0.
         element0 : int or str
-            Element at which the given coordinates are defined.
+            Element at which the given coordinates are defined. Default is the
+            first element in the beam line.
+        reverse : bool
+            If True, the survey is computed in the reversed reference frame.
 
         Returns
         -------
         survey : SurveyTable
             Survey table.
+
+        Notes
+        -----
+
+        The output survey table contains the following columns:
+
+        - ``name``: element name (with occurrence counts for repeated names).
+        - ``element_type``: type of the element (e.g. Drift, Marker, Bend).
+        - ``s``: longitudinal coordinate at the element entrance [m].
+        - ``X``, ``Y``, ``Z``: position of the element entrance in the global frame [m].
+        - ``theta``, ``phi``, ``psi``: orientation angles of the local frame
+          (azimuth, elevation, roll) unwrapped along the line [rad].
+        - ``ex``, ``ey``, ``ez``: unit vectors of the local frame expressed in
+          the global frame (they are the columns of ``W``).
+        - ``W``: 3x3 rotation matrices describing the local frame at each
+          element entrance.
+        - ``p0``: position vectors stacked as ``[X, Y, Z]``.
+        - ``isthick``: ``True`` for thick elements, ``False`` for markers.
+        - ``drift_length``: length used while advancing the survey (zero for
+          thin elements) [m].
+        - ``length``: physical length of the element [m].
+        - ``angle``: bending angle of the element [rad].
+        - ``rot_s_rad``: rotation around the longitudinal axis applied before
+          the element [rad].
+        - ``ref_shift_x``, ``ref_shift_y``: alignment shifts applied before the
+          element [m].
+        - ``ref_rot_x_rad``, ``ref_rot_y_rad``, ``ref_rot_s_rad``: alignment
+          rotations applied before the element [rad].
+
+        Examples
+        --------
+        .. code-block:: python
+
+            import xtrack as xt
+
+            # Create a simple line
+            env = xt.Environment(particle_ref=xt.Particles(p0c=1e9))
+            line = env.new_line(length=6, components=[
+                env.new('b1', xt.Bend, length=0.2, angle=0.1, at=1),
+                env.new('q1', xt.Quadrupole, length=0.1, k1=0.5, at=2),
+                env.new('b2', xt.Bend, length=0.2, angle=-0.1, at=3),
+                env.new('q2', xt.Quadrupole, length=0.1, k1=-0.5, at=4),
+            ])
+
+            # Compute the survey
+            sv = line.survey()
+            # sv.X, sv.Y, sv.Z contain the coordinates of the reference
+            # trajectory in the global frame
+
+            # Compute the trajectory of a particle entering with x=1 mm and y=2 mm
+            tw = line.twiss4d(betx=1, bety=1, x=1e-3, y=2e-3)
+            # tw.x, tw.y contain the coordinates of the particle in the local frame
+
+            # Compute the trajectory of the particle in the global frame
+            p_global = tw.x[:, None] * sv.ex + tw.y[:, None] * sv.ey + sv.p0
+
+            X_trajectory = p_global[:, 0]
+            Y_trajectory = p_global[:, 1]
+            Z_trajectory = p_global[:, 2]
+
         """
 
         if not self._has_valid_tracker():
@@ -4554,11 +4629,20 @@ class Line:
         return self.tracker.record_last_track
 
     @property
+    def record_multi_element_last_track(self):
+        self._check_valid_tracker()
+        return self.tracker.record_multi_element_last_track
+
+    @property
     def vars(self):
         if hasattr(self, '_in_multiline') and self._in_multiline is not None:
             return self._in_multiline.vars
         else:
             return self.env.vars
+
+    @property
+    def ref(self):
+        return self.env.ref
 
     @property
     def varval(self):
