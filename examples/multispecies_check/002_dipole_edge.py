@@ -68,8 +68,8 @@ ele_ref2 = [xt.Drift(length=1), edge_ref2, xt.Drift(length=1)]
 line_ref1 = xt.Line(elements=ele_ref1)
 line_ref2 = xt.Line(elements=ele_ref2)
 
-line_ref1.append_element(element=xt.Marker(), name='endmarker')
-line_ref2.append_element(element=xt.Marker(), name='endmarker')
+line_ref1.append(obj=xt.Marker(), what='endmarker')
+line_ref2.append(obj=xt.Marker(), what='endmarker')
 
 line_ref1.configure_bend_model(edge=model)
 line_ref2.configure_bend_model(edge=model)

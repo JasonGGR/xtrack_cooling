@@ -1,10 +1,12 @@
 import pathlib
 
 import numpy as np
+import xobjects as xo
 from scipy.constants import c as clight
+from xobjects.test_helpers import fix_random_seed
 
 import xtrack as xt
-from xobjects.test_helpers import fix_random_seed
+import xtrack.synctime as st
 
 test_data_folder = pathlib.Path(
     __file__).parent.joinpath('../test_data').absolute()
@@ -35,13 +37,11 @@ def test_coasting():
     line.cut_at_s(s_sync)
     for ii, ss in enumerate(s_sync):
         nn = f'sync_here_{ii}'
-        line.insert_element(element=xt.Marker(), name=nn, at_s=ss)
+        line.insert(obj=xt.Marker(), what=nn, at=ss)
         line[nn].iscollective = True
 
-    import xtrack.synctime as st
     st.install_sync_time_at_collective_elements(line)
 
-    import xobjects as xo
     line.build_tracker(_context=xo.ContextCpu(omp_num_threads='auto'))
 
     beta1 = tw.beta0 / 0.9

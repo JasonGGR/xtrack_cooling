@@ -326,7 +326,7 @@ class ElementAssembler:
         if name_associated_aperture:
             xtel.name_associated_aperture = name_associated_aperture
         name = generate_repeated_name(line, self.name)
-        line.append_element(xtel, name)
+        line.append(name, xtel)
 
 
 class ElementAssemblerWithExpr(ElementAssembler):
@@ -343,7 +343,7 @@ class ElementAssemblerWithExpr(ElementAssembler):
         name = generate_repeated_name(line, self.name)
         if name_associated_aperture:
             xtel.name_associated_aperture = name_associated_aperture
-        line.append_element(xtel, name)
+        line.append(name, xtel)
         elref = line.ref.elements[name]
         for k, p in self.attrs.items():
             set_expr(elref, k, p)

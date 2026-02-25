@@ -264,16 +264,15 @@ def test_record_with_twiss(test_context):
         input_data = json.load(fid)
     line = xt.Line.from_dict(input_data['line'])
     line.particle_ref = xp.Particles.from_dict(input_data['particle'])
-    line.insert_element(element=TestElement(n_kicks=n_kicks0), name='test0', at_s=line.get_s_position('ip1'))
-    line.insert_element(element=TestElement(n_kicks=n_kicks1), name='test1', at_s=line.get_s_position('ip5'))
+    line.insert(obj=TestElement(n_kicks=n_kicks0), what='test0', at=line.get_s_position('ip1'))
+    line.insert(obj=TestElement(n_kicks=n_kicks1), what='test1', at=line.get_s_position('ip5'))
 
     line._needs_rng = True
     line.build_tracker(_context=test_context)
-    record = line.start_internal_logging_for_elements_of_type(
-                                                        TestElement, capacity=10000)
+    _ = line.start_internal_logging_for_elements_of_type(TestElement, capacity=10000)
     line.particle_ref = xp.Particles(mass0=xp.PROTON_MASS_EV, q0=1, p0c=6.5e12)
-    io_buffer = line.tracker.io_buffer
-    line.twiss(at_s=np.linspace(0, line.get_length(), 500))
+    line.cut_at_s(np.linspace(0, line.get_length(), 500))
+    line.twiss()
 
 
 @for_all_test_contexts

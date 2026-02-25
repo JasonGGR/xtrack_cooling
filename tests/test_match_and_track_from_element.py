@@ -145,8 +145,8 @@ def test_match_and_track_from_element(test_context):
                 1j*(particles.x[0]  * tw['alfx'][0] / np.sqrt(tw['betx'][0]) +
                         particles.px[0] * np.sqrt(tw['betx'][0])))
 
-    mu_at_s = line_w_collective.twiss(
-        at_s=line_w_collective.get_s_position('ip6') + 100)['mux'][0]
+    line_w_collective.insert('ip6_plus_100', obj=xt.Marker(), at=line_w_collective.get_s_position('ip6') + 100)
+    mu_at_s = line_w_collective.twiss().rows['ip6_plus_100']['mux']
     mu_at_element = line_w_collective.twiss(at_elements=[at_element])['mux'][0]
 
     xo.assert_allclose(phasex_first_part, (mu_at_element - mu_at_s)*2*np.pi,

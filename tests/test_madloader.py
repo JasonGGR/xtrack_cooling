@@ -718,8 +718,7 @@ def test_load_madx_optics_file():
     xo.assert_allclose(collider.twiss().lhcb1['px', 'ip1'], 70e-6, atol=1e-8, rtol=0)
     xo.assert_allclose(collider.twiss().lhcb2['px', 'ip1'], -70e-6, atol=1e-8, rtol=0)
 
-    collider.vars.load_madx_optics_file(
-        test_data_folder / 'hllhc15_thick/opt_round_300_1500.madx')
+    collider.vars.load(test_data_folder / 'hllhc15_thick/opt_round_300_1500.madx')
 
     collider._xdeps_manager.verify()
 
@@ -740,8 +739,7 @@ def test_load_madx_optics_file():
     xo.assert_allclose(tw.lhcb1['px', 'ip1'], 30e-6, atol=1e-9, rtol=0)
     xo.assert_allclose(tw.lhcb2['px', 'ip1'], -30e-6, atol=1e-9, rtol=0)
 
-    collider.vars.load_madx_optics_file(
-        test_data_folder / 'hllhc15_thick/opt_round_150_1500.madx')
+    collider.vars.load(test_data_folder / 'hllhc15_thick/opt_round_150_1500.madx')
 
     tw = collider.twiss()
     xo.assert_allclose(tw.lhcb1.qx, 62.31000000, atol=1e-6, rtol=0)

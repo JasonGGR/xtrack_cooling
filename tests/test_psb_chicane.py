@@ -144,7 +144,7 @@ def test_psb_chicane(test_context):
 
     # Correct tunes and beta beat
     line.discard_tracker()
-    line.insert_element(element=xt.Marker(), name='mker_match', at_s=79.874)
+    line.insert(obj=xt.Marker(), what='mker_match', at=79.874)
     line.build_tracker(_context=test_context)
 
     line.vars['on_chicane_k0'] = 0
@@ -353,7 +353,7 @@ def test_psb_chicane(test_context):
     # Install monitor at foil
     monitor = xt.ParticlesMonitor(start_at_turn=0, stop_at_turn=6000, num_particles=1)
     line.discard_tracker()
-    line.insert_element(index='bi1.tstr1l1', element=monitor, name='monitor_at_foil')
+    line.insert('monitor_at_foil', at=0, from_='bi1.tstr1l1', obj=monitor)
     line.build_tracker(_context=test_context)
 
     p = line.build_particles(x=0, px=0, y=0, py=0, delta=0, zeta=0)
@@ -406,7 +406,7 @@ def test_psb_chicane(test_context):
                                                 num_particles_to_inject=7)
 
         line.discard_tracker()
-        line.insert_element(index='bi1.tstr1l1', element=p_injection, name='injection')
+        line.insert('injection', at=0, from_='bi1.tstr1l1', obj=p_injection)
 
         # Add monitor at end line
         monitor = xt.ParticlesMonitor(start_at_turn=0, stop_at_turn=10, num_particles=100)

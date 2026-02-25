@@ -4,9 +4,9 @@ import xdeps as xd
 import numpy as np
 import pytest
 import json
-import pathlib
+from pathlib import Path
 
-test_data_folder = pathlib.Path(__file__).parent.joinpath('../test_data').absolute()
+test_data_folder = Path(__file__).parent.joinpath('../test_data').absolute()
 
 @pytest.mark.parametrize('container_type', ['env', 'line'])
 def test_vars_and_element_access_modes(container_type):
@@ -1878,7 +1878,7 @@ def test_vars_features(tmpdir):
         json.dump(dd, fid)
 
     ee2 = xt.Environment()
-    ee2.vars.load_json(tmpdir / 'env.json')
+    ee2.vars.load(Path(tmpdir) / 'env.json')
     assert ee2['a'] == 3.0
     assert ee2['b'] == 9.0
     assert ee2.vars.get_table()['expr', 'b'] == '(3.0 * a)'

@@ -2,8 +2,7 @@
 # This file is part of the Xtrack Package.  #
 # Copyright (c) CERN, 2021.                 #
 # ######################################### #
-
-import logging
+from warnings import warn
 
 import io
 import json
@@ -65,8 +64,6 @@ OTHER_FIELDS_FROM_ATTR=['angle_rad', 'rot_s_rad', 'hkick', 'vkick', 'ks', 'lengt
 OTHER_FIELDS_FROM_TABLE=['element_type', 'isthick', 'parent_name']
 SIGN_FLIP_FOR_ATTR_REVERSE=['k0l', 'k2l', 'k4l', 'k1sl', 'k3sl', 'k5sl', 'vkick', 'angle_rad']
 
-
-log = logging.getLogger(__name__)
 
 def twiss_line(line, particle_ref=None, method=None,
         particle_on_co=None, R_matrix=None, W_matrix=None,
@@ -383,6 +380,13 @@ def twiss_line(line, particle_ref=None, method=None,
         - `T_rev`: measured revolution period [s]
 
     """
+    if at_s is not None:
+        warn('`at_s` keyword is deprecated and will be removed in future versions. \n'
+        'The same functionality can be achieved making a shallow copy of the line '
+        '(e.g. `line_copy = line.copy(shallow=True)`), using the`line.cut_at_s(...)` '
+        ' functionality and then calling line_copy.twiss(...) on the cut line.',
+        FutureWarning)
+
     input_kwargs = locals().copy()
 
     # defaults
@@ -2026,9 +2030,16 @@ def _compute_chromatic_functions(line, init, delta_chrom,
         tw_minus = tw_chrom_res[0]
         tw_center = on_momentum_twiss_res
 
-        delta_plus_mean = trapz(tw_plus.delta, tw_plus.s) / tw_plus.s[-1]
-        delta_minus_mean = trapz(tw_minus.delta, tw_minus.s) / tw_minus.s[-1]
-        delta_center_mean = trapz(tw_center.delta, tw_center.s) / tw_center.s[-1]
+        if tw_center.s[-1] == 0:
+            # line has zero length, so we cannot integrate.
+            # We just take the mean of the delta values
+            delta_plus_mean = np.mean(tw_plus.delta)
+            delta_minus_mean = np.mean(tw_minus.delta)
+            delta_center_mean = np.mean(tw_center.delta)
+        else:
+            delta_plus_mean = trapz(tw_plus.delta, tw_plus.s) / tw_plus.s[-1]
+            delta_minus_mean = trapz(tw_minus.delta, tw_minus.s) / tw_minus.s[-1]
+            delta_center_mean = trapz(tw_center.delta, tw_center.s) / tw_center.s[-1]
 
         dqx_plus = (tw_plus.mux[-1] - tw_center.mux[-1]) / (delta_plus_mean - delta_center_mean)
         dqx_minus = (tw_center.mux[-1] - tw_minus.mux[-1]) / (delta_center_mean - delta_minus_mean)
@@ -2466,6 +2477,9 @@ def _find_periodic_solution(line, particle_on_co, particle_ref, method,
 
     if method == '6d' and delta0 is not None:
         raise ValueError('delta0 should be None when method is "6d"')
+
+    if method == '6d' and zeta0 is not None:
+        raise ValueError('zeta0 should be None when method is "6d"')
 
     if periodic_mode == 'periodic_symmetric':
         raise ValueError('``periodic_symmetric`` not supported anymore')
@@ -3687,6 +3701,13 @@ class TwissTable(Table):
                default_column_width=None, float_precision=8,
                numeric_column_width=16, column_formats=None,
                column_widths=None):
+
+        if exclude is None:
+            exclude = []
+
+        if 'completed_init' in self.keys():
+            exclude.append('completed_init')
+
         super().to_tfs(
             file,
             include=include,

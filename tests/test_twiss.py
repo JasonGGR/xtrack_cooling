@@ -35,22 +35,25 @@ def test_twiss_4d_fodo_vs_beta_rel(test_context):
     tw_4d_list = []
     for p0c in p0c_list:
         line.particle_ref = xp.Particles(mass0=xp.PROTON_MASS_EV, q0=1, p0c=p0c)
-        tw = line.twiss(method="4d", at_s=np.linspace(0, line.get_length(), 500))
-        tw_4d_list.append(tw)
+        at_s = np.linspace(0, line.get_length(), 500)
+        line.cut_at_s(at_s)
+        tw_all = line.twiss4d()
+        tw_at_s = tw_all.rows[np.searchsorted(tw_all.s, at_s)]
+        tw_4d_list.append(tw_at_s)
 
-    for tw in tw_4d_list:
-        xo.assert_allclose(tw.betx, tw_4d_list[0].betx, atol=1e-7, rtol=0)
-        xo.assert_allclose(tw.bety, tw_4d_list[0].bety, atol=1e-7, rtol=0)
-        xo.assert_allclose(tw.alfx, tw_4d_list[0].alfx, atol=1e-8, rtol=0)
-        xo.assert_allclose(tw.alfy, tw_4d_list[0].alfy, atol=1e-8, rtol=0)
-        xo.assert_allclose(tw.dx, tw_4d_list[0].dx, atol=1e-8, rtol=0)
-        xo.assert_allclose(tw.dy, tw_4d_list[0].dy, atol=1e-8, rtol=0)
-        xo.assert_allclose(tw.dpx, tw_4d_list[0].dpx, atol=1e-8, rtol=0)
-        xo.assert_allclose(tw.dpy, tw_4d_list[0].dpy, atol=1e-8, rtol=0)
-        xo.assert_allclose(tw.qx, tw_4d_list[0].qx, atol=1e-7, rtol=0)
-        xo.assert_allclose(tw.qy, tw_4d_list[0].qy, atol=1e-7, rtol=0)
-        xo.assert_allclose(tw.dqx, tw_4d_list[0].dqx, atol=1e-4, rtol=0)
-        xo.assert_allclose(tw.dqy, tw_4d_list[0].dqy, atol=1e-4, rtol=0)
+    for tw_at_s in tw_4d_list:
+        xo.assert_allclose(tw_at_s.betx, tw_4d_list[0].betx, atol=1e-7, rtol=0)
+        xo.assert_allclose(tw_at_s.bety, tw_4d_list[0].bety, atol=1e-7, rtol=0)
+        xo.assert_allclose(tw_at_s.alfx, tw_4d_list[0].alfx, atol=1e-8, rtol=0)
+        xo.assert_allclose(tw_at_s.alfy, tw_4d_list[0].alfy, atol=1e-8, rtol=0)
+        xo.assert_allclose(tw_at_s.dx, tw_4d_list[0].dx, atol=1e-8, rtol=0)
+        xo.assert_allclose(tw_at_s.dy, tw_4d_list[0].dy, atol=1e-8, rtol=0)
+        xo.assert_allclose(tw_at_s.dpx, tw_4d_list[0].dpx, atol=1e-8, rtol=0)
+        xo.assert_allclose(tw_at_s.dpy, tw_4d_list[0].dpy, atol=1e-8, rtol=0)
+        xo.assert_allclose(tw_at_s.qx, tw_4d_list[0].qx, atol=1e-7, rtol=0)
+        xo.assert_allclose(tw_at_s.qy, tw_4d_list[0].qy, atol=1e-7, rtol=0)
+        xo.assert_allclose(tw_at_s.dqx, tw_4d_list[0].dqx, atol=1e-4, rtol=0)
+        xo.assert_allclose(tw_at_s.dqy, tw_4d_list[0].dqy, atol=1e-4, rtol=0)
 
 @for_all_test_contexts
 def test_coupled_beta(test_context):
@@ -114,8 +117,8 @@ def test_twiss_zeta0_delta0(test_context):
     z1 = 1e-4
     z2 = -1e-4
 
-    tw1 = line.twiss(zeta0=z1).to_pandas()
-    tw2 = line.twiss(zeta0=z2).to_pandas()
+    tw1 = line.twiss4d(zeta0=z1).to_pandas()
+    tw2 = line.twiss4d(zeta0=z2).to_pandas()
 
     tw1.set_index('name', inplace=True)
     tw2.set_index('name', inplace=True)
@@ -295,12 +298,12 @@ def test_twiss_does_not_affect_monitors(test_context):
 
     n_part =1
     monitor = xt.ParticlesMonitor(_context=test_context,
-                                    start_at_turn = 0,
-                                    stop_at_turn = 1,
-                                    n_repetitions=10,
-                                    repetition_period=1,
-                                    num_particles =n_part)
-    line.insert_element(index=0, element=monitor, name='monitor_start')
+                                  start_at_turn=0,
+                                  stop_at_turn=1,
+                                  n_repetitions=10,
+                                  repetition_period=1,
+                                  num_particles=n_part)
+    line.insert('monitor_start', at=0, obj=monitor)
     line.build_tracker(_context=test_context)
 
     particles = line.build_particles(x=123e-6)

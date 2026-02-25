@@ -96,8 +96,8 @@ def test_multispecies_multipole():
     line_ref1 = xt.Line(elements=ele_ref1)
     line_ref2 = xt.Line(elements=ele_ref2)
 
-    line_ref1.append_element(element=xt.Marker(), name='endmarker')
-    line_ref2.append_element(element=xt.Marker(), name='endmarker')
+    line_ref1.append('endmarker', obj=xt.Marker())
+    line_ref2.append('endmarker', obj=xt.Marker())
 
     line_ref1.build_tracker()
     line_ref2.build_tracker()
@@ -210,8 +210,8 @@ def test_multispecies_bend(model, B_T, hxl, G_Tm, S_Tm2):
     line_ref1 = xt.Line(elements=ele_ref1)
     line_ref2 = xt.Line(elements=ele_ref2)
 
-    line_ref1.append_element(element=xt.Marker(), name='endmarker')
-    line_ref2.append_element(element=xt.Marker(), name='endmarker')
+    line_ref1.append('endmarker', obj=xt.Marker())
+    line_ref2.append('endmarker', obj=xt.Marker())
 
     line_ref1.configure_bend_model(core=model)
     line_ref2.configure_bend_model(core=model)
@@ -300,8 +300,8 @@ def test_multispecies_dipole_edge(model, side):
     line_ref1 = xt.Line(elements=ele_ref1)
     line_ref2 = xt.Line(elements=ele_ref2)
 
-    line_ref1.append_element(element=xt.Marker(), name='endmarker')
-    line_ref2.append_element(element=xt.Marker(), name='endmarker')
+    line_ref1.append('endmarker', obj=xt.Marker())
+    line_ref2.append('endmarker', obj=xt.Marker())
 
     line_ref1.configure_bend_model(edge=model)
     line_ref2.configure_bend_model(edge=model)
@@ -407,8 +407,8 @@ def test_multispecies_quadrupole():
     line_ref1 = xt.Line(elements=ele_ref1)
     line_ref2 = xt.Line(elements=ele_ref2)
 
-    line_ref1.append_element(element=xt.Marker(), name='endmarker')
-    line_ref2.append_element(element=xt.Marker(), name='endmarker')
+    line_ref1.append('endmarker', obj=xt.Marker())
+    line_ref2.append('endmarker', obj=xt.Marker())
 
     line_ref1.configure_bend_model(core=model)
     line_ref2.configure_bend_model(core=model)
@@ -512,8 +512,8 @@ def test_multispecies_sextupole():
     line_ref1 = xt.Line(elements=ele_ref1)
     line_ref2 = xt.Line(elements=ele_ref2)
 
-    line_ref1.append_element(element=xt.Marker(), name='endmarker')
-    line_ref2.append_element(element=xt.Marker(), name='endmarker')
+    line_ref1.append('endmarker', obj=xt.Marker())
+    line_ref2.append('endmarker', obj=xt.Marker())
 
     line_ref1.configure_bend_model(core=model)
     line_ref2.configure_bend_model(core=model)
@@ -614,8 +614,8 @@ def test_multispecies_octupole():
     line_ref1 = xt.Line(elements=ele_ref1)
     line_ref2 = xt.Line(elements=ele_ref2)
 
-    line_ref1.append_element(element=xt.Marker(), name='endmarker')
-    line_ref2.append_element(element=xt.Marker(), name='endmarker')
+    line_ref1.append('endmarker', obj=xt.Marker())
+    line_ref2.append('endmarker', obj=xt.Marker())
 
     line_ref1.configure_drift_model(model='exact')
     line_ref2.configure_drift_model(model='exact')
@@ -700,8 +700,8 @@ def test_multispecies_cavity():
     line_ref1 = xt.Line(elements=ele_ref1)
     line_ref2 = xt.Line(elements=ele_ref2)
 
-    line_ref1.append_element(element=xt.Marker(), name='endmarker')
-    line_ref2.append_element(element=xt.Marker(), name='endmarker')
+    line_ref1.append('endmarker', obj=xt.Marker())
+    line_ref2.append('endmarker', obj=xt.Marker())
 
     line_ref1.build_tracker()
     line_ref2.build_tracker()

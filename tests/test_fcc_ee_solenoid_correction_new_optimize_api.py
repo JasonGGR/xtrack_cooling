@@ -37,11 +37,6 @@ def test_fcc_ee_solenoid_correction_new_optimizer_api():
     import pandas as pd
     bz_df = pd.read_csv(bz_data_file, sep=r'\s+', skiprows=1, names=['z', 'Bz'])
 
-    l_solenoid = 4.4
-    ds_sol_start = -l_solenoid / 2 * np.cos(15e-3)
-    ds_sol_end = +l_solenoid / 2 * np.cos(15e-3)
-    ip_sol = 'ip.1'
-
     theta_tilt = 15e-3 # rad
     l_beam = 4.4
     l_solenoid = l_beam * np.cos(theta_tilt)
@@ -68,10 +63,8 @@ def test_fcc_ee_solenoid_correction_new_optimizer_api():
     s_ip = tt['s', ip_sol]
 
     line.discard_tracker()
-    line.insert_element(name='sol_start_'+ip_sol, element=xt.Marker(),
-                        at_s=s_ip + ds_sol_start)
-    line.insert_element(name='sol_end_'+ip_sol, element=xt.Marker(),
-                        at_s=s_ip + ds_sol_end)
+    line.insert(what='sol_start_' + ip_sol, obj=xt.Marker(), at=s_ip + ds_sol_start)
+    line.insert(what='sol_end_' + ip_sol, obj=xt.Marker(), at=s_ip + ds_sol_end)
 
     sol_start_tilt = xt.YRotation(angle=-theta_tilt * 180 / np.pi)
     sol_end_tilt = xt.YRotation(angle=+theta_tilt * 180 / np.pi)
@@ -109,8 +102,7 @@ def test_fcc_ee_solenoid_correction_new_optimizer_api():
     # re-insert the ip
     line.env.elements.pop(ip_sol)
     tt = line.get_table()
-    line.insert_element(name=ip_sol, element=xt.Marker(),
-            at_s = 0.5 * (tt['s', 'sol_start_'+ip_sol] + tt['s', 'sol_end_'+ip_sol]))
+    line.insert(what=ip_sol, obj=xt.Marker(), at=0.5 * (tt['s', 'sol_start_'+ip_sol] + tt['s', 'sol_end_'+ip_sol]))
 
     line.vars['on_corr_ip.1'] = 0
 
@@ -199,14 +191,10 @@ def test_fcc_ee_solenoid_correction_new_optimizer_api():
     line.slice_thick_elements(slicing_strategies=slicing_strategies)
 
     # Add dipole correctors
-    line.insert_element(name='mcb1.r1', element=xt.Multipole(knl=[0]),
-                        at='qc1r1.1_exit')
-    line.insert_element(name='mcb2.r1', element=xt.Multipole(knl=[0]),
-                        at='qc1r2.1_exit')
-    line.insert_element(name='mcb1.l1', element=xt.Multipole(knl=[0]),
-                        at='qc1l1.4_entry')
-    line.insert_element(name='mcb2.l1', element=xt.Multipole(knl=[0]),
-                        at='qc1l2.4_entry')
+    line.insert(what='mcb1.r1', obj=xt.Multipole(knl=[0]), at='qc1r1.1_exit')
+    line.insert(what='mcb2.r1', obj=xt.Multipole(knl=[0]), at='qc1r2.1_exit')
+    line.insert(what='mcb1.l1', obj=xt.Multipole(knl=[0]), at='qc1l1.4_entry')
+    line.insert(what='mcb2.l1', obj=xt.Multipole(knl=[0]), at='qc1l2.4_entry')
 
     line.vars['acb1h.r1'] = 0
     line.vars['acb1v.r1'] = 0

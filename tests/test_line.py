@@ -30,7 +30,7 @@ def test_simplification_methods():
         )
 
     # Test merging of drifts
-    line.insert_element(element=xt.Cavity(), name='cav', at_s=3.3)
+    line.insert(obj=xt.Cavity(), what='cav', at=3.3)
     assert isinstance(line['e4..0'], xt.DriftSlice)
     line._replace_with_equivalent_elements()
     assert isinstance(line['e4..0'], xt.Drift)
@@ -42,8 +42,8 @@ def test_simplification_methods():
     xo.assert_allclose(line[line.element_names[2]].length, 1.7, rtol=0, atol=1e-12)
 
     # Test merging of drifts, while keeping one
-    line.insert_element(element=xt.Drift(length=1), name='drift1', at_s=1.2)
-    line.insert_element(element=xt.Drift(length=1), name='drift2', at_s=2.2)
+    line.insert(obj=xt.Drift(length=1), what='drift1', at=1.2)
+    line.insert(obj=xt.Drift(length=1), what='drift2', at=2.2)
     line._replace_with_equivalent_elements()
     line.merge_consecutive_drifts(inplace=True, keep=['drift2'])
     assert len(line.element_names) == 5
@@ -53,8 +53,8 @@ def test_simplification_methods():
     line.merge_consecutive_drifts(inplace=True)
 
     # Test removing of zero-length drifts
-    line.insert_element(element=xt.Drift(length=0), name='dzero1', at_s=3.3)
-    line.insert_element(element=xt.Drift(length=0), name='dzero2', at_s=3.3)
+    line.insert(obj=xt.Drift(length=0), what='dzero1', at=3.3)
+    line.insert(obj=xt.Drift(length=0), what='dzero2', at=3.3)
     assert len(line.element_names) == 5
     line._replace_with_equivalent_elements()
     line.remove_zero_length_drifts(inplace=True, keep='dzero2')
@@ -66,10 +66,10 @@ def test_simplification_methods():
 
     # Test merging of multipoles
     line.env._var_management = None
-    line.insert_element(element=xt.Multipole(knl=[1, 0, 3], ksl=[0, 20, 0]), name='m1', at_s=3.3)
-    line.insert_element(element=xt.Multipole(knl=[4, 2], ksl=[10, 40]), name='m2', at_s=3.3)
-    line.insert_element(element=xt.Multipole(knl=[0, 3, 8], ksl=[2, 0, 17]), name='m3', at_s=3.3)
-    line.insert_element(element=xt.Multipole(knl=[2, 0, 0], ksl=[40]), name='m4', at_s=3.3)
+    line.insert(obj=xt.Multipole(knl=[1, 0, 3], ksl=[0, 20, 0]), what='m1', at=3.3)
+    line.insert(obj=xt.Multipole(knl=[4, 2], ksl=[10, 40]), what='m2', at=3.3)
+    line.insert(obj=xt.Multipole(knl=[0, 3, 8], ksl=[2, 0, 17]), what='m3', at=3.3)
+    line.insert(obj=xt.Multipole(knl=[2, 0, 0], ksl=[40]), what='m4', at=3.3)
     assert len(line.element_names) == 7
     line._replace_with_equivalent_elements()
     line.merge_consecutive_multipoles(inplace=True, keep='m3')
@@ -90,8 +90,8 @@ def test_simplification_methods():
     xo.assert_allclose(line[line.element_names[1]].ksl, [52,60,17], rtol=0, atol=1e-15)
 
     # Test removing inactive multipoles
-    line.insert_element(element=xt.Multipole(knl=[0, 8, 1], ksl=[0, 20, 30]), name='m5', at_s=3.3)
-    line.insert_element(element=xt.Multipole(knl=[2, 0, 3], ksl=[10, 34, 15]), name='m6', at_s=3.3)
+    line.insert(obj=xt.Multipole(knl=[0, 8, 1], ksl=[0, 20, 30]), what='m5', at=3.3)
+    line.insert(obj=xt.Multipole(knl=[2, 0, 3], ksl=[10, 34, 15]), what='m6', at=3.3)
     line.remove_inactive_multipoles(inplace=True)
     assert len(line.element_names) == 6
     line['m5'].knl[:] = 0
@@ -105,16 +105,16 @@ def test_simplification_methods():
     assert 'm6' not in line.element_names
 
     # Test removing markers
-    line.insert_element(element=xt.Marker(), name='marker1', at_s=3.3)
-    line.insert_element(element=xt.Marker(), name='marker2', at_s=3.3)
+    line.insert(obj=xt.Marker(), what='marker1', at=3.3)
+    line.insert(obj=xt.Marker(), what='marker2', at=3.3)
     assert 'marker1' in line.element_names
     assert 'marker2' in line.element_names
     line._replace_with_equivalent_elements()
     line.remove_markers(keep='marker2')
     assert 'marker1' not in line.element_names
     assert 'marker2' in line.element_names
-    line.insert_element(element=xt.Marker(), name='marker4', at_s=3.3)
-    line.insert_element(element=xt.Marker(), name='marker3', at_s=3.3)
+    line.insert(obj=xt.Marker(), what='marker4', at=3.3)
+    line.insert(obj=xt.Marker(), what='marker3', at=3.3)
     assert 'marker2' in line.element_names
     assert 'marker3' in line.element_names
     assert 'marker4' in line.element_names
@@ -241,13 +241,13 @@ def test_insert():
     assert len(line.get_s_position(at_elements=['e3'])) == 1
     assert np.all(np.array([4,2]) == np.array(line.get_s_position(at_elements=['e4', 'e2'])))
 
-    line.insert_element(element=xt.Cavity(), name="cav", at_s=3.3)
+    line.insert(obj=xt.Cavity(), what="cav", at=3.3)
     assert line.get_length() == line.get_s_elements(mode='downstream')[-1] == 5
     assert line.get_s_position('cav') == 3.3
     assert len(line.elements) == 7
 
     line = line0.copy()
-    line.insert_element(element=xt.Drift(length=0.2), at_s=0.11, name='inserted_drift')
+    line.insert(obj=xt.Drift(length=0.2), at=0.11, what='inserted_drift', anchor='start')
     assert line.get_s_position('inserted_drift') == 0.11
     assert len(line.elements) == 7
     assert np.all([nn==nnref for nn, nnref in list(zip(line.element_names,
@@ -255,7 +255,7 @@ def test_insert():
     assert line.get_length() == line.get_s_elements(mode='downstream')[-1] == 5
 
     line = line0.copy()
-    line.insert_element(element=xt.Drift(length=0.2), at_s=0.95, name='inserted_drift')
+    line.insert(obj=xt.Drift(length=0.2), at=0.95, what='inserted_drift', anchor='start')
     assert line.get_s_position('inserted_drift') == 0.95
     assert len(line.elements) == 6
     assert np.all([nn==nnref for nn, nnref in list(zip(line.element_names,
@@ -263,7 +263,7 @@ def test_insert():
     assert line.get_length() == line.get_s_elements(mode='downstream')[-1] == 5
 
     line = line0.copy()
-    line.insert_element(element=xt.Drift(length=0.2), at_s=1.0, name='inserted_drift')
+    line.insert(obj=xt.Drift(length=0.2), at=1.0, what='inserted_drift', anchor='start')
     assert line.get_s_position('inserted_drift') == 1.
     assert len(line.elements) == 6
     assert np.all([nn==nnref for nn, nnref in list(zip(line.element_names,
@@ -271,7 +271,7 @@ def test_insert():
     assert line.get_length() == line.get_s_elements(mode='downstream')[-1] == 5
 
     line = line0.copy()
-    line.insert_element(element=xt.Drift(length=0.2), at_s=0.8, name='inserted_drift')
+    line.insert(obj=xt.Drift(length=0.2), at=0.8, what='inserted_drift', anchor='start')
     assert line.get_s_position('inserted_drift') == 0.8
     assert len(line.elements) == 6
     assert np.all([nn==nnref for nn, nnref in list(zip(line.element_names,
@@ -279,12 +279,12 @@ def test_insert():
     assert line.get_length() == line.get_s_elements(mode='downstream')[-1] == 5
 
     line = line0.copy()
-    line.insert_element(element=xt.LimitEllipse(a=1, b=1), at_s=2.1, name='aper')
+    line.insert(obj=xt.LimitEllipse(a=1, b=1), at=2.1, what='aper')
     assert line.get_s_position('aper') == 2.1
     assert line.get_length() == line.get_s_elements(mode='downstream')[-1] == 5
     assert np.all([nn==nnref for nn, nnref in list(zip(line.element_names,
                 ['e0', 'e1', 'e2..0', 'aper', 'e2..1', 'e3', 'e4']))])
-    line.insert_element(element=xt.Drift(length=0.8), at_s=1.9, name="newdrift")
+    line.insert(obj=xt.Drift(length=0.8), at=1.9, what="newdrift", anchor='start')
     assert line.get_s_position('newdrift') == 1.9
     assert np.all([nn==nnref for nn, nnref in list(zip(line.element_names,
                 ['e0', 'e1..0', 'newdrift', 'e2..1..1', 'e3', 'e4']))])
@@ -300,15 +300,15 @@ def test_insert():
         enames.append(f'm{ii}')
 
     line = xt.Line(elements=elements, element_names=enames)
-    line.insert_element(element=xt.Drift(length=1.), at_s=1.0, name='inserted_drift')
+    line.insert(obj=xt.Drift(length=1.), at=1.0, what='inserted_drift', anchor='start')
     assert line.get_s_position('inserted_drift') == 1.
     assert len(line.elements) == 10
     assert np.all([nn==nnref for nn, nnref in list(zip(line.element_names,
         ['d0', 'm0', 'inserted_drift', 'm1', 'd2', 'm2', 'd3', 'm3', 'd4', 'm4']))])
     assert line.get_length() == line.get_s_elements(mode='downstream')[-1] == 5
 
-    line.insert_element(element=xt.Cavity(), at_s=3.0, name='cav0')
-    line.insert_element(element=xt.Cavity(), at_s=3.0, name='cav1')
+    line.insert(obj=xt.Cavity(), at=3.0, what='cav0')
+    line.insert(obj=xt.Cavity(), at=3.0, what='cav1')
     assert len(line.elements) == 12
     assert np.all([nn==nnref for nn, nnref in list(zip(line.element_names,
         ['d0', 'm0', 'inserted_drift', 'm1', 'd2', 'cav1', 'cav0', 'm2', 'd3',
@@ -318,7 +318,7 @@ def test_insert():
     assert line.get_s_position('cav1') == 3.
 
     line = xt.Line(elements=elements, element_names=enames)
-    line.insert_element(element=xt.Drift(length=0.2), at_s=0.95, name='inserted_drift')
+    line.insert(obj=xt.Drift(length=0.2), at=0.95, what='inserted_drift', anchor='start')
     assert line.get_s_position('inserted_drift') == 0.95
     assert len(line.elements) == 10
     assert np.all([nn==nnref for nn, nnref in list(zip(line.element_names,
@@ -335,7 +335,7 @@ def test_insert_omp():
     multipole = xt.Multipole(knl=[1], _buffer=buffer)
 
     line = xt.Line(elements=[drift], element_names=['dr'])
-    line.insert_element(element=multipole, at_s=1, name='mp')
+    line.insert('mp', obj=multipole, at=1)
     line.build_tracker()
 
     assert line._buffer is line['dr..0']._buffer
@@ -1037,28 +1037,24 @@ def test_slicing_at_custom_s():
     xo.assert_allclose(tab.rows[r'e6\.\.\d*'].s, [7, 7.8, 7.9], atol=1e-16)
 
 def test_insert_thick_element_reuse_marker_name():
-
-    assert_allclose = xo.assert_allclose
-
     elements = {
         'd1': xt.Drift(length=1),
         'm1': xt.Marker(),
         'd2': xt.Drift(length=1),
     }
 
-    line=xt.Line(elements=elements,
-                element_names=list(elements.keys()))
+    line = xt.Line(elements=elements, element_names=list(elements.keys()))
 
     # Note that the name is reused
     line.remove('m1') # remove from the line
     line.env.remove('m1') # remove from the environment
-    line.insert_element(element=xt.Bend(length=1.), name='m1', at_s=0.5)
+    line.insert('m1', obj=xt.Bend(length=1.), at=0.5, anchor='start')
 
     tt = line.get_table()
 
     assert np.all(tt.name == ['d1..0', 'm1', 'd2..1', '_end_point'])
     assert np.all(tt.parent_name == ['d1', None, 'd2', None])
-    assert_allclose(tt.s, [0. , 0.5, 1.5, 2. ], rtol=0, atol=1e-14)
+    xo.assert_allclose(tt.s, [0. , 0.5, 1.5, 2. ], rtol=0, atol=1e-14)
 
 def test_multiple_thick_elements():
     line = xt.Line(
@@ -1117,19 +1113,19 @@ def test_get_strengths(test_context):
 
 
 
+@pytest.mark.filterwarnings('ignore::FutureWarning')
 def test_insert_repeated_names():
 
     line = xt.Line(
         elements=([xt.Drift(length=0)] # Start line marker
-                    + [xt.Drift(length=1) for _ in range(5)]
-                    + [xt.Drift(length=0)] # End line marker
-            ),
+                  + [xt.Drift(length=1) for _ in range(5)]
+                  + [xt.Drift(length=0)]), # End line marker
         element_names=['d']*7
         )
-    line.insert_element("m1",xt.Marker(),at="d::3")
-    assert line.element_names[3]=="m1"
-    line.insert_element("m2",xt.Marker(),at="d")
-    assert line.element_names[0]=="m2"
+    line.insert_element("m1", xt.Marker(), at="d::3")
+    assert line.element_names[3] == "m1"
+    line.insert_element("m2", xt.Marker(), at="d")
+    assert line.element_names[0] == "m2"
 
 def test_line_table_unique_names():
     line = xt.Line(

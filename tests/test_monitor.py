@@ -145,8 +145,8 @@ def test_monitor(test_context, line0, particles0):
     monitor_ip8 = xt.ParticlesMonitor(start_at_turn=5, stop_at_turn=15,
                                       num_particles=num_particles)
     line_w_monitor = line0.copy()
-    line_w_monitor.insert_element(index='ip5', element=monitor_ip5, name='mymon5')
-    line_w_monitor.insert_element(index='ip8', element=monitor_ip8, name='mymon8')
+    line_w_monitor.insert('mymon5', at=0, from_='ip5', obj=monitor_ip5)
+    line_w_monitor.insert('mymon8', at=0, from_='ip8', obj=monitor_ip8)
 
     line_w_monitor.build_tracker(_context=test_context)
 

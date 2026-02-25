@@ -1,25 +1,27 @@
+import importlib.util
+import json
+import re
+import uuid
 from collections import Counter, UserDict
 from collections.abc import Iterable
 from contextlib import contextmanager
-from typing import Literal
-from weakref import WeakKeyDictionary, WeakSet
 from copy import deepcopy
-import json
-import re
-import importlib.util
-import uuid
 from pathlib import Path
+from typing import Literal
+from warnings import warn
+from weakref import WeakKeyDictionary, WeakSet
 
 import numpy as np
 import pandas as pd
-
-import xobjects as xo
 import xdeps as xd
+import xobjects as xo
+
 import xtrack as xt
-from .multiline_legacy.multiline_legacy import MultilineLegacy
-from .progress_indicator import progress
+
 from .functions import Functions
 from .match import Action
+from .multiline_legacy.multiline_legacy import MultilineLegacy
+from .progress_indicator import progress
 from .view import View
 
 ReferType = Literal['start', 'center', 'centre', 'end']
@@ -847,13 +849,12 @@ class Environment:
 
     @classmethod
     def from_json(cls, file, **kwargs):
-
-        """Constructs an environment from a json file.
+        """Constructs an environment from a JSON file.
 
         Parameters
         ----------
         file : str or file-like object
-            Path to the json file or file-like object.
+            Path to the JSON file or file-like object.
             If filename ends with '.gz' file is decompressed.
         **kwargs : dict
             Additional keyword arguments passed to `Environment.from_dict`.
@@ -864,9 +865,7 @@ class Environment:
             Environment object.
 
         """
-
         dct = xt.json.load(file)
-
         return cls.from_dict(dct, **kwargs)
 
 
@@ -2012,7 +2011,6 @@ class EnvVars:
             format: Literal['json', 'madx', 'python'] = None,
             timeout=5.,
         ):
-
         if isinstance(file, Path):
             file = str(file)
 
@@ -2040,7 +2038,7 @@ class EnvVars:
             ddd = xt.json.load(file=file, string=string)
             self.update(ddd, default_to_zero=True)
         elif format == 'madx':
-            return self.load_madx(file, string)
+            return self._load_madx(file, string)
         elif format == 'python':
             if string is not None:
                 raise NotImplementedError('Loading from string not implemented for python format')
@@ -2164,16 +2162,32 @@ class EnvVars:
         self.__dict__.update(state)
         self.vars_to_update = WeakSet()
 
-    def set_from_madx_file(self, filename=None, string=None):
+    def load_madx(self, filename=None, string=None):
+        """Deprecated: see `_load_madx` instead."""
+        warn('EnvVars.load_madx is deprecated, use `load` instead.', FutureWarning)
+        self._load_madx(filename=filename, string=string)
 
-        '''
-        Set variables veluas of expression from a MAD-X file.
+    def set_from_madx_file(self, filename=None, string=None):
+        """Deprecated: see `_load_madx` instead."""
+        warn('EnvVars.set_from_madx_file is deprecated, use `load` instead.', FutureWarning)
+        self._load_madx(filename=filename, string=string)
+
+    def load_madx_optics_file(self, filename=None, string=None):
+        """Deprecated: see `_load_madx` instead."""
+        warn('EnvVars.load_madx_optics_file is deprecated, use `load` instead.', FutureWarning)
+        self._load_madx(filename=filename, string=string)
+
+    def _load_madx(self, filename=None, string=None):
+        """
+        Set variables values of expression from a MAD-X file.
 
         Parameters
         ----------
-        filename : str or list of str
+        filename: str or list of str
             Path to the MAD-X file(s) to load.
-        '''
+        string: str
+            MAD-X source string to load.
+        """
         old_default_to_zero = self.default_to_zero
         loader = xt.mad_parser.MadxLoader(env=self.env)
         if filename is not None:
@@ -2182,15 +2196,13 @@ class EnvVars:
         elif string is not None:
             assert filename is None, 'Cannot specify both filename and string'
             loader.load_string(string)
-        self.default_to_zero = old_default_to_zero # restore (in case changed by loader)
-
-    def load_madx_optics_file(self, filename=None, string=None):
-        self.set_from_madx_file(filename, string)
-
-    load_madx = load_madx_optics_file
+        self.default_to_zero = old_default_to_zero  # restore (in case changed by loader)
 
     def load_json(self, filename):
-
+        warn(
+            '`EnvVars.load_json` is deprecated, use `load`, optionally with `format="json"` instead.',
+            FutureWarning
+        )
         with open(filename, 'r') as fid:
             data = json.load(fid)
 

@@ -1071,6 +1071,7 @@ class KnobOptimizer:
         for vv in vary_flatten:
             aux_name = vv.name + '_from_' + knob_name
             if (aux_name in line.vars
+                and line.vars[vv.name]._expr is not None
                 and (line.vars[aux_name] in
                          line.vars[vv.name]._expr._get_dependencies())):
                 # reset existing term in expression
@@ -1118,7 +1119,7 @@ class KnobOptimizer:
 
         self.line.vars[self.knob_name] = self.knob_value_start
 
-        _print('Generated knob: ', self.knob_name)
+        _print('Generated knob: ', self.knob_name, '                      ')
 
 def opt_from_callable(function, x0, steps, tar, tols):
 

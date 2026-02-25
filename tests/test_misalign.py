@@ -211,9 +211,9 @@ def test_misalign_vs_madng(angle, tilt):
     psi = 0.5  # rad
 
     if angle:
-        element = xt.Bend(length=length, angle=angle, model='rot-kick-rot', k0=k0)#, rot_s_rad=tilt)
+        element = xt.Bend(length=length, angle=angle, model='rot-kick-rot', k0=k0)
     else:
-        element = xt.Solenoid(length=length, ks=ks)#, rot_s_rad=tilt)
+        element = xt.UniformSolenoid(length=length, ks=ks)
 
     # Track in Xsuite
     p0 = xt.Particles(x=0.2, y=-0.6, px=-0.01, py=0.02, zeta=0.5, delta=0.9)

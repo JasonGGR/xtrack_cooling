@@ -31,7 +31,7 @@ def test_acceleration(test_context):
     line = xt.Line.from_dict(input_data['line'])
 
     energy_increase = xt.ReferenceEnergyIncrease(Delta_p0c=Delta_p0c)
-    line.append_element(energy_increase, 'energy_increase')
+    line.append('energy_increase', energy_increase)
 
     line.build_tracker(_context=test_context)
 

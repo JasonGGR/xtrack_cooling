@@ -42,10 +42,10 @@ def test_twiss_table_file(check_type, tmp_path):
         assert set(tw_test.keys()) - set(tw.keys()) == {'xtrack_version'}
     else:
         assert set(tw_test.keys()) - set(tw.keys()) == {'__class__', 'xtrack_version'}
-    assert set(tw.keys()) - set(tw_test.keys()) == {'_action'}
+    assert set(tw.keys()) - set(tw_test.keys()) <= {'_action', 'completed_init'}
 
     for kk in tw._data:
-        if kk == '_action':
+        if kk == '_action' or kk == 'completed_init':
             continue
         if kk in ['particle_on_co', 'steps_r_matrix', 'line_config']:
             continue # To be checked separately

@@ -244,6 +244,7 @@ def test_uniform_solenoid(case, atol):
     xo.assert_allclose(p.spin_z[0], ref['spin_z'], atol=atol, rtol=0)
 
 
+@pytest.mark.filterwarnings('ignore::FutureWarning')
 @pytest.mark.parametrize(
     'case,atol',
     zip(
@@ -420,6 +421,7 @@ def test_quadrupole(case, atol):
     xo.assert_allclose(p.spin_z[0], ref['spin_z'], atol=atol, rtol=0)
 
 
+@pytest.mark.filterwarnings('ignore::FutureWarning')
 def test_polarization_lep_base():
     line = xt.load(BMAD_REF_FILES / 'lep_lattice_to_bmad.json')
 
@@ -495,6 +497,7 @@ def test_polarization_lep_base():
     )
 
 
+@pytest.mark.filterwarnings('ignore::FutureWarning')
 def test_polarization_lep_spin_bump():
     line = xt.load(BMAD_REF_FILES / 'lep_lattice_to_bmad.json')
 
@@ -570,6 +573,7 @@ def test_polarization_lep_spin_bump():
     )
 
 
+@pytest.mark.filterwarnings('ignore::FutureWarning')
 def test_polarization_lep_sext_corr():
     line = xt.load(BMAD_REF_FILES / 'lep_lattice_to_bmad.json')
 

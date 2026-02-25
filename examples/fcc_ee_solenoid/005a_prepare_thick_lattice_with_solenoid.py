@@ -14,7 +14,7 @@ line = env.fccee_p_ring
 line.particle_ref = xt.Particles(mass0=xt.ELECTRON_MASS_EV,
                                  p0c=pc_gev*1e9)
 line.cycle('ip.4', inplace=True)
-line.append_element(element=xt.Marker(), name='ip.4.l')
+line.append(obj=xt.Marker(), what='ip.4.l')
 line.build_tracker()
 
 # Get table with the elements

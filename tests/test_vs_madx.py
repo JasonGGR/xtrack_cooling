@@ -366,16 +366,18 @@ def test_twiss_and_survey(
         # Test custom s locations
         if not reverse:
             s_test = [2e3, 1e3, 3e3, 10e3]
-            twats = line.twiss(at_s = s_test)
+            line.cut_at_s(s_test)
+            tw = line.twiss()
+            tw_at_s = tw.rows[np.searchsorted(tw.s, s_test)]
             for ii, ss in enumerate(s_test):
-                xo.assert_allclose(twats['s'][ii], ss, rtol=0, atol=1e-14)
-                xo.assert_allclose(twats['alfx'][ii], np.interp(ss, twxt['s'], twxt['alfx']),
+                xo.assert_allclose(tw_at_s['s'][ii], ss, rtol=0, atol=1e-14)
+                xo.assert_allclose(tw_at_s['alfx'][ii], np.interp(ss, twxt['s'], twxt['alfx']),
                                 rtol=1e-5, atol=0)
-                xo.assert_allclose(twats['alfy'][ii], np.interp(ss, twxt['s'], twxt['alfy']),
+                xo.assert_allclose(tw_at_s['alfy'][ii], np.interp(ss, twxt['s'], twxt['alfy']),
                                 rtol=1e-5, atol=0)
-                xo.assert_allclose(twats['dpx'][ii], np.interp(ss, twxt['s'], twxt['dpx']),
+                xo.assert_allclose(tw_at_s['dpx'][ii], np.interp(ss, twxt['s'], twxt['dpx']),
                                 rtol=1e-5, atol=0)
-                xo.assert_allclose(twats['dpy'][ii], np.interp(ss, twxt['s'], twxt['dpy']),
+                xo.assert_allclose(tw_at_s['dpy'][ii], np.interp(ss, twxt['s'], twxt['dpy']),
                                 rtol=1e-5, atol=0)
 
 

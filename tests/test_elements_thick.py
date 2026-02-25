@@ -1920,6 +1920,7 @@ def test_solenoid_with_mult_kicks(test_context, backtrack):
     xo.assert_allclose(p_test.pzeta, p_ref.pzeta, rtol=0, atol=1e-13)
 
 
+@pytest.mark.filterwarnings('ignore::FutureWarning')
 @for_all_test_contexts
 def test_solenoid_shifted_and_rotated_multipolar_kick(test_context):
     ks = 0.9
@@ -1971,6 +1972,7 @@ def test_solenoid_shifted_and_rotated_multipolar_kick(test_context):
     xo.assert_allclose(p_test.delta, p_ref.delta, rtol=0, atol=1e-14)
 
 
+@pytest.mark.filterwarnings('ignore::FutureWarning')
 @pytest.mark.parametrize('shift_x', (0, 1e-3))
 @pytest.mark.parametrize('shift_y', (0, 1e-3))
 @pytest.mark.parametrize('test_element_name', ('Bend', 'Quadrupole', 'Sextupole'))
@@ -2064,6 +2066,7 @@ def test_solenoid_multipole_shifts(shift_x, shift_y, test_element_name):
     xo.assert_allclose(tw.y[-1], tw_sol.y[-1], rtol=2e-6, atol=1e-12)
 
 
+@pytest.mark.filterwarnings('ignore::FutureWarning')
 def test_solenoid_multipole_rotations():
     N_SLICES = int(1E2)
     K0 = 1E-3
@@ -2671,6 +2674,7 @@ def test_configure_model():
     assert line['o1'].integrator == 'uniform'
     assert line['o1'].num_multipole_kicks == 7
 
+@pytest.mark.filterwarnings('ignore::FutureWarning')
 @for_all_test_contexts
 @pytest.mark.parametrize('reference', ['legacy', 'variable'])
 def test_uniform_solenoid_with_slices(test_context, reference):

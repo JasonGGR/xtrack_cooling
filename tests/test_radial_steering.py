@@ -36,7 +36,7 @@ def test_radial_steering(test_context):
     dzeta = tw.circumference * df_hz / f_rf
 
     line.discard_tracker()
-    line.append_element(element=xt.ZetaShift(dzeta=dzeta), name='zeta_shift')
+    line.append('zeta_shift', xt.ZetaShift(dzeta=dzeta))
     line.build_tracker()
 
     tw_6d_offmom = line.twiss()

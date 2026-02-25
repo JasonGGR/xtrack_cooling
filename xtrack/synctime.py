@@ -78,10 +78,10 @@ def install_sync_time_at_collective_elements(line, frame_relative_length=None):
     ltab = line.get_table()
     tab_collective = ltab.rows[ltab.iscollective]
     for ii, nn in enumerate(tab_collective.name):
-        cc = x=SyncTime(circumference=circumference,
+        cc = SyncTime(circumference=circumference,
                         frame_relative_length=frame_relative_length,
                         id=COAST_STATE_RANGE_START + ii + 1)
-        line.insert_element(element=cc, name=f'synctime_{ii}', at=nn)
+        line.insert(obj=cc, what=f'synctime_{ii}', at=nn)
 
     synctime_start = SyncTime(circumference=circumference,
                         frame_relative_length=frame_relative_length,
@@ -92,8 +92,8 @@ def install_sync_time_at_collective_elements(line, frame_relative_length=None):
                         id=COAST_STATE_RANGE_START + len(tab_collective)+2,
                         at_end=True)
 
-    line.insert_element(element=synctime_start, name='synctime_start', at_s=0)
-    line.append_element(synctime_end, name='synctime_end')
+    line.insert(obj=synctime_start, what='synctime_start', at=0)
+    line.append('synctime_end', obj=synctime_end)
 
 def prepare_particles_for_sync_time(particles, line):
     synctime_start = line['synctime_start']

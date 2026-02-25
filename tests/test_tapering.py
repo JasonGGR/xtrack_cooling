@@ -69,10 +69,8 @@ def test_tapering_and_twiss_with_radiation():
 
         # Check twiss at_s
         print('Twiss at_s')
-        i_ele = len(tw.s)//3
-        tws = line.twiss(at_s=tw.s[i_ele],
-                        radiation_method=conf['radiation_method'],
-                        eneloss_and_damping=True, **extra_kwargs)
+        i_ele = len(tw.s) // 3
+        tws = line.twiss(radiation_method=conf['radiation_method'], eneloss_and_damping=True, **extra_kwargs).rows[i_ele]
         print('Done')
 
         line.config.XTRACK_CAVITY_PRESERVE_ANGLE = False

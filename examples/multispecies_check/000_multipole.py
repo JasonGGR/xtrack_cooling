@@ -92,8 +92,8 @@ for ii in range(n_slices):
 line_ref1 = xt.Line(elements=ele_ref1)
 line_ref2 = xt.Line(elements=ele_ref2)
 
-line_ref1.append_element(element=xt.Marker(), name='endmarker')
-line_ref2.append_element(element=xt.Marker(), name='endmarker')
+line_ref1.append(obj=xt.Marker(), what='endmarker')
+line_ref2.append(obj=xt.Marker(), what='endmarker')
 
 line_ref1.configure_drift_model(model='exact')
 line_ref2.configure_drift_model(model='exact')

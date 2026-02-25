@@ -20,7 +20,7 @@ line = xt.Line.from_madx_sequence(mad.sequence.fccee_p_ring, allow_thick=True,
 line.particle_ref = xt.Particles(mass0=xt.ELECTRON_MASS_EV,
                                  gamma0=mad.sequence.fccee_p_ring.beam.gamma)
 line.cycle('ip.4', inplace=True)
-line.append_element(element=xt.Marker(), name='ip.4.l')
+line.append(obj=xt.Marker(), what='ip.4.l')
 line.build_tracker()
 
 # Get table with the elements

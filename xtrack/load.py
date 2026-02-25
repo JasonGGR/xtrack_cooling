@@ -4,11 +4,11 @@
 # ######################################### #
 
 from __future__ import annotations
-
+from warnings import warn
 import io
 from pathlib import Path
 from typing import Literal, Optional
-
+from xtrack.mad_parser.loader import load_madx_lattice as mad_parser_load_madx_lattice
 import xtrack as xt
 
 
@@ -101,9 +101,7 @@ def load(
         raise ValueError('Cannot determine class from json data')
 
     if format == 'madx':
-        return xt.load_madx_lattice(file=file, string=string,
-                                    reverse_lines=reverse_lines,
-                                    **kwargs)
+        return mad_parser_load_madx_lattice(file=file, string=string, reverse_lines=reverse_lines, **kwargs)
 
     if format == 'python':
         if string is not None:
@@ -147,3 +145,9 @@ def load(
         return _resolve_table_instance(base_table)
 
     raise ValueError(f'Unsupported format {format!r}')
+
+
+def load_madx_lattice(file=None, string=None, reverse_lines=None, **kwargs):
+    """Deprecated in favour of `xt.load`, or the dedicated function in `mad_parser.loader`."""
+    warn('`xt.load_madx_lattice` is deprecated, use `xt.load` instead', FutureWarning)
+    return mad_parser_load_madx_lattice(file=file, string=string, reverse_lines=reverse_lines, **kwargs)

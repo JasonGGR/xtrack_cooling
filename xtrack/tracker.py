@@ -164,16 +164,16 @@ class Tracker:
         parts = []
         part_names = []
         _element_part = []
-        _element_index_in_part=[]
+        _element_index_in_part = []
         _part_element_index = defaultdict(list)
-        this_part = Line(elements=[], element_names=[])
+        this_part = line.env.new_line()
         ii_in_part = 0
         i_part = 0
         idx = 0
         for nn in line.element_names:
             ee = line._element_dict[nn]
             if not _is_collective(ee, line):
-                this_part.append_element(ee, nn)
+                this_part.append(nn)
                 _element_part.append(i_part)
                 _element_index_in_part.append(ii_in_part)
                 ii_in_part += 1
@@ -189,7 +189,7 @@ class Tracker:
                 _element_index_in_part.append(None)
                 _part_element_index[i_part].append(idx)
                 i_part += 1
-                this_part = Line(elements=[], element_names=[])
+                this_part = line.env.new_line()
                 ii_in_part = 0
             idx += 1
         if len(this_part) > 0:

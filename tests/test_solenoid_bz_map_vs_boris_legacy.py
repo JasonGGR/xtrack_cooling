@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 from scipy.constants import c as clight
 from scipy.constants import e as qe
 from scipy.constants import epsilon_0 as eps0
@@ -9,6 +10,7 @@ from xobjects.test_helpers import for_all_test_contexts
 from xtrack._temp.boris_and_solenoid_map.solenoid_field import SolenoidField
 
 
+@pytest.mark.filterwarnings('ignore::FutureWarning')
 @for_all_test_contexts
 def test_solenoid_bz_map_vs_boris(test_context):
     ctx = xo.ContextCpu()
